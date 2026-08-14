@@ -1,0 +1,6 @@
+{
+  "name": "عائلة يحيي صبيح",
+  "description": "تطبيق التواصل العائلي الشامل لعائلة يحيي صبيح مع الدردشة الفورية، الإعلانات المثبتة، تقويم المناسبات العائلية، ألبوم الذكريات، استطلاعات الرأي، والموجات الصوتية التفاعلية",
+  "requestFramePermissions": ["microphone", "camera"],
+  "majorCapabilities": ["MAJOR_CAPABILITY_SERVER_SIDE_GEMINI_API"]
+}

@@ -1,0 +1,997 @@
+<!DOCTYPE html>
+<html lang="ar" dir="rtl">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
+  <title>عائلة يحيي صبيح | الدردشة العائلية الفورية</title>
+  
+  <!-- PWA Meta Tags -->
+  <meta name="description" content="تطبيق المحادثة الفوري ومشاركة الصور والفيديوهات والروابط لعائلة يحيي صبيح">
+  <meta name="theme-color" content="#0f172a">
+  <meta name="mobile-web-app-capable" content="yes">
+  <meta name="apple-mobile-web-app-capable" content="yes">
+  <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
+  <meta name="apple-mobile-web-app-title" content="عائلة صبيح">
+  <link rel="manifest" href="./manifest.json">
+  <link rel="icon" type="image/svg+xml" href="./icon.svg">
+  <link rel="apple-touch-icon" href="./icon.svg">
+
+  <!-- Google Fonts: Tajawal -->
+  <link rel="preconnect" href="https://fonts.googleapis.com">
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+  <link href="https://fonts.googleapis.com/css2?family=Tajawal:wght@300;400;500;700;800;900&display=swap" rel="stylesheet">
+
+  <!-- FontAwesome 6 CDN -->
+  <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.5.1/css/all.min.css" integrity="sha512-DTOQO9RWCH3ppGqcWaEA1BIZOC6xxalwEsw9c2QQeAIftl+Vegovlnee1c9QX4TctnWMn13TZye+giMm8e2LwA==" crossorigin="anonymous" referrerpolicy="no-referrer" />
+
+  <!-- Firebase SDKs (v10 Compat Mode) -->
+  <script src="https://www.gstatic.com/firebasejs/10.8.0/firebase-app-compat.js"></script>
+  <script src="https://www.gstatic.com/firebasejs/10.8.0/firebase-database-compat.js"></script>
+  <script src="https://www.gstatic.com/firebasejs/10.8.0/firebase-storage-compat.js"></script>
+
+  <!-- Custom Stylesheet -->
+  <link rel="stylesheet" href="./style.css">
+</head>
+<body class="app-body">
+  
+  <!-- Main Application Wrapper -->
+  <div id="app" class="app-container">
+    
+    <!-- Top Header -->
+    <header class="app-header" id="appHeader">
+      <div class="header-main">
+        <div class="brand-info">
+          <div class="brand-avatar">
+            <i class="fa-solid fa-house-chimney-user"></i>
+            <span class="online-indicator-dot" id="headerOnlineDot" title="متصل الآن"></span>
+          </div>
+          <div class="brand-titles">
+            <h1 class="family-title">عائلة يحيي صبيح</h1>
+            <p class="family-subtitle">
+              <span class="status-badge" id="networkStatusBadge">
+                <i class="fa-solid fa-circle status-dot"></i>
+                <span id="networkStatusText">متصل بالشبكة</span>
+              </span>
+              <span class="member-count-badge" id="memberCountBadge">
+                <i class="fa-solid fa-users"></i> <span id="onlineCount">مجلس العائلة</span>
+              </span>
+            </p>
+          </div>
+        </div>
+
+        <!-- Header Actions -->
+        <div class="header-actions">
+          <!-- Active User Badge & Switcher -->
+          <button id="userProfileBtn" class="user-profile-badge" title="تغيير اسم العضو أو اختيار اسم من القائمة">
+            <span class="user-avatar-pill" id="headerUserAvatar">م</span>
+            <div class="user-meta">
+              <span class="user-label">أنت الآن:</span>
+              <strong class="user-name-display" id="headerUserName">جارِ التحميل...</strong>
+            </div>
+            <i class="fa-solid fa-chevron-down profile-arrow"></i>
+          </button>
+
+          <!-- Pinned Announcement Button -->
+          <button id="pinnedAnnouncementBtn" class="icon-btn" title="الإعلانات والملاحظات العائلية المثبتة" aria-label="إعلان عائلي">
+            <i class="fa-solid fa-thumbtack"></i>
+            <span id="pinnedBadgeDot" class="pinned-badge-dot" style="display: none;"></span>
+          </button>
+
+          <!-- Family Calendar & Events Button -->
+          <button id="familyCalendarBtn" class="icon-btn" title="تقويم المناسبات العائلية والأعياد" aria-label="المناسبات العائلية">
+            <i class="fa-solid fa-calendar-days"></i>
+            <span id="eventsCountBadge" class="events-count-badge" style="display: none;">0</span>
+          </button>
+
+          <!-- Family Roster / All Names Manager Button -->
+          <button id="familyRosterBtn" class="icon-btn" title="دليل أفراد العائلة (إدخال وإدارة الأسماء دفعة واحدة)" aria-label="دليل العائلة">
+            <i class="fa-solid fa-users"></i>
+          </button>
+
+          <!-- Search Messages Toggle -->
+          <button id="searchToggleBtn" class="icon-btn" title="البحث في الرسائل" aria-label="بحث">
+            <i class="fa-solid fa-magnifying-glass"></i>
+          </button>
+
+          <!-- Media Gallery Button -->
+          <button id="mediaGalleryBtn" class="icon-btn" title="معرض الوسائط والملفات" aria-label="معرض الوسائط">
+            <i class="fa-solid fa-photo-film"></i>
+          </button>
+
+          <!-- Firebase Config & Settings -->
+          <button id="settingsBtn" class="icon-btn" title="إعدادات الاتصال وقاعدة البيانات" aria-label="الإعدادات">
+            <i class="fa-solid fa-gear"></i>
+          </button>
+
+          <!-- PWA Install Button (Hidden by default, shown if installable) -->
+          <button id="pwaInstallBtn" class="install-pwa-btn" style="display: none;" title="تثبيت التطبيق على جهازك">
+            <i class="fa-solid fa-cloud-arrow-down"></i>
+            <span>تثبيت</span>
+          </button>
+        </div>
+      </div>
+
+      <!-- Search Bar Overlay (Collapsible) -->
+      <div id="searchBarContainer" class="search-bar-container" style="display: none;">
+        <div class="search-input-wrapper">
+          <i class="fa-solid fa-magnifying-glass search-icon"></i>
+          <input type="text" id="searchInput" placeholder="ابحث في الرسائل أو أسماء الأعضاء..." autocomplete="off">
+          <button id="clearSearchBtn" class="search-clear-btn" title="إلغاء البحث">
+            <i class="fa-solid fa-xmark"></i>
+          </button>
+        </div>
+        <div id="searchResultsCount" class="search-results-info"></div>
+      </div>
+    </header>
+
+    <!-- Top Pinned Announcement Banner (Collapsible / Sticky) -->
+    <div id="pinnedAnnouncementBanner" class="pinned-announcement-banner" style="display: none;">
+      <div class="pinned-banner-main">
+        <div class="pinned-pin-icon">
+          <i class="fa-solid fa-thumbtack"></i>
+        </div>
+        <div class="pinned-content-wrap">
+          <div class="pinned-header-line">
+            <span class="pinned-tag">إعلان عائلي هام</span>
+            <h4 id="pinnedTitle" class="pinned-title">موعد الاجتماع العائلي</h4>
+            <span id="pinnedSender" class="pinned-sender">بواسطة: يحيي صبيح</span>
+          </div>
+          <p id="pinnedText" class="pinned-text">يسرنا دعوتكم لحضور الاجتماع العائلي...</p>
+        </div>
+      </div>
+      <div class="pinned-banner-actions">
+        <button type="button" id="editAnnouncementBtn" class="btn-pinned-action" title="تعديل أو تثبيت إعلان جديد">
+          <i class="fa-solid fa-pen-to-square"></i>
+          <span>تعديل</span>
+        </button>
+        <button type="button" id="togglePinnedBannerBtn" class="btn-pinned-action" title="تصغير / تكبير الإعلان">
+          <i class="fa-solid fa-chevron-up"></i>
+        </button>
+      </div>
+    </div>
+
+    <!-- PWA Install Banner (Top sticky notice if supported) -->
+    <div id="pwaBanner" class="pwa-prompt-banner" style="display: none;">
+      <div class="pwa-banner-text">
+        <i class="fa-solid fa-mobile-screen-button"></i>
+        <span>أضف تطبيق <strong>عائلة يحيي صبيح</strong> لشاشتك الرئيسية لسهولة التصفح!</span>
+      </div>
+      <div class="pwa-banner-actions">
+        <button id="pwaBannerInstallBtn" class="btn btn-primary btn-sm">تثبيت الآن</button>
+        <button id="pwaBannerDismissBtn" class="btn btn-ghost btn-sm">لاحقاً</button>
+      </div>
+    </div>
+
+    <!-- Main Chat Area -->
+    <main class="chat-main" id="chatMain">
+      
+      <!-- Welcome Family Banner (Shown when no messages or top of history) -->
+      <div class="family-welcome-card" id="familyWelcomeCard">
+        <div class="welcome-icon-box">
+          <i class="fa-solid fa-heart-pulse"></i>
+        </div>
+        <h2>مرحباً بكم في ملتقى عائلة يحيي صبيح</h2>
+        <p>مساحة خاصة للتواصل، مشاركة الصور والفيديوهات، والاطمئنان على بعضنا البعض 🌿</p>
+        <div class="quick-family-pills" id="quickGreetingPills">
+          <button class="greeting-pill" data-text="السلام عليكم ورحمة الله وبركاته 🌹">السلام عليكم 🌹</button>
+          <button class="greeting-pill" data-text="صباح الخير والبركة على الجميع ☀️">صباح الخير ☀️</button>
+          <button class="greeting-pill" data-text="مساء النور والسرور يا أغلى أهل 🌙">مساء الخير 🌙</button>
+          <button class="greeting-pill" data-text="جمعة مباركة عليكم جميعاً 🤲">جمعة مباركة 🤲</button>
+        </div>
+      </div>
+
+      <!-- Chat Messages Container (Populated dynamically) -->
+      <div class="messages-stream" id="messagesStream">
+        <!-- Messages & Date Dividers will be dynamically rendered here -->
+      </div>
+    </main>
+
+    <!-- Floating Chat Navigation Controls (Scroll Up & Down) -->
+    <div class="chat-nav-controls" id="chatNavControls">
+      <button id="scrollToTopBtn" class="chat-nav-btn" title="الانتقال إلى أول المحادثة / لأعلى" aria-label="تحريك لأعلى">
+        <i class="fa-solid fa-angles-up"></i>
+        <span class="nav-tooltip">أول المحادثة</span>
+      </button>
+      <button id="scrollStepUpBtn" class="chat-nav-btn chat-nav-btn-mini" title="تحريك للأعلى" aria-label="تحريك للأعلى">
+        <i class="fa-solid fa-chevron-up"></i>
+      </button>
+      <button id="scrollStepDownBtn" class="chat-nav-btn chat-nav-btn-mini" title="تحريك للأسفل" aria-label="تحريك للأسفل">
+        <i class="fa-solid fa-chevron-down"></i>
+      </button>
+      <button id="scrollToBottomBtn" class="chat-nav-btn" title="الانتقال إلى آخر الرسائل / لأسفل" aria-label="تحريك لأسفل">
+        <i class="fa-solid fa-angles-down"></i>
+        <span class="nav-tooltip">آخر الرسائل</span>
+        <span id="unreadCountBadge" class="unread-badge" style="display: none;">0</span>
+      </button>
+    </div>
+
+    <!-- Upload / Media Progress Indicator Bar -->
+    <div id="uploadProgressBarContainer" class="upload-progress-container" style="display: none;">
+      <div class="upload-info">
+        <span class="upload-text"><i class="fa-solid fa-spinner fa-spin"></i> <span id="uploadStatusText">جارِ رفع الوسائط إلى الخادم...</span></span>
+        <span id="uploadPercentText" class="upload-percent">0%</span>
+      </div>
+      <div class="progress-bar-track">
+        <div id="uploadProgressBar" class="progress-bar-fill" style="width: 0%;"></div>
+      </div>
+    </div>
+
+    <!-- Pending Attachment Preview Bar (Above Input Box) -->
+    <div id="attachmentPreviewBar" class="attachment-preview-bar" style="display: none;">
+      <div class="preview-item-box" id="previewItemBox">
+        <div class="preview-thumbnail" id="previewThumbnail">
+          <!-- Image preview or file icon -->
+        </div>
+        <div class="preview-details">
+          <span class="preview-filename" id="previewFilename">image.jpg</span>
+          <span class="preview-filesize" id="previewFilesize">1.2 MB</span>
+        </div>
+        <button id="cancelAttachmentBtn" class="preview-remove-btn" title="إلغاء المرفق">
+          <i class="fa-solid fa-xmark"></i>
+        </button>
+      </div>
+    </div>
+
+    <!-- Quick Emoji Reaction Bar (Collapsible / Toggleable) -->
+    <div id="quickEmojiBar" class="quick-emoji-bar">
+      <button type="button" class="emoji-chip" data-emoji="❤️" title="قلب">❤️</button>
+      <button type="button" class="emoji-chip" data-emoji="🤲" title="دعاء">🤲</button>
+      <button type="button" class="emoji-chip" data-emoji="🌹" title="وردة">🌹</button>
+      <button type="button" class="emoji-chip" data-emoji="👍" title="إعجاب">👍</button>
+      <button type="button" class="emoji-chip" data-emoji="😂" title="ضحك">😂</button>
+      <button type="button" class="emoji-chip" data-emoji="☕" title="قهوة">☕</button>
+      <button type="button" class="emoji-chip" data-emoji="🎉" title="احتفال">🎉</button>
+      <button type="button" class="emoji-chip" data-emoji="🎂" title="كعكة">🎂</button>
+      <button type="button" class="emoji-chip" data-emoji="✨" title="بريق">✨</button>
+      <button type="button" class="emoji-chip" data-emoji="💐" title="باقة">💐</button>
+    </div>
+
+    <!-- Chat Footer & Input Form -->
+    <footer class="chat-footer">
+      
+      <!-- Audio Recording Live Bar (Replaces input when recording) -->
+      <div id="audioRecordingBar" class="audio-recording-bar" style="display: none;">
+        <div class="recording-indicator">
+          <span class="recording-blinking-dot"></span>
+          <span class="recording-label">جارِ تسجيل رسالة صوتية...</span>
+          <strong id="recordingTimer" class="recording-time">00:00</strong>
+        </div>
+        <div class="recording-actions">
+          <button id="cancelRecordBtn" type="button" class="btn-rec-cancel" title="إلغاء التسجيل">
+            <i class="fa-solid fa-trash-can"></i>
+            <span>إلغاء</span>
+          </button>
+          <button id="sendRecordBtn" type="button" class="btn-rec-send" title="إرسال التسجيل">
+            <i class="fa-solid fa-paper-plane"></i>
+            <span>إرسال</span>
+          </button>
+        </div>
+      </div>
+
+      <!-- Standard Message Form -->
+      <form id="messageForm" class="message-form" autocomplete="off">
+        
+        <!-- Media / File Attachment Button -->
+        <label for="fileInput" class="action-btn file-attach-btn" title="إرفاق صورة، فيديو، أو مقطع صوتي" id="fileAttachLabel">
+          <i class="fa-solid fa-paperclip"></i>
+          <input type="file" id="fileInput" accept="image/*,video/*,audio/*" style="display: none;">
+        </label>
+
+        <!-- Quick Image Camera Button -->
+        <label for="cameraInput" class="action-btn camera-btn" title="التقاط صورة بكاميرا الهاتف" id="cameraLabel">
+          <i class="fa-solid fa-camera"></i>
+          <input type="file" id="cameraInput" accept="image/*" capture="environment" style="display: none;">
+        </label>
+
+        <!-- Family Polls Button -->
+        <button type="button" id="createPollBtn" class="action-btn poll-btn" title="إنشاء استطلاع رأي عائلي وتصويت">
+          <i class="fa-solid fa-square-poll-vertical"></i>
+        </button>
+
+        <!-- Text Input Box -->
+        <div class="input-wrapper">
+          <textarea 
+            id="messageInput" 
+            class="message-textarea" 
+            placeholder="اكتب رسالتك لعائلة يحيي صبيح..." 
+            rows="1"
+            maxlength="2000"></textarea>
+        </div>
+
+        <!-- Voice Note Record Button -->
+        <button type="button" id="recordVoiceBtn" class="action-btn mic-btn" title="تسجيل رسالة صوتية">
+          <i class="fa-solid fa-microphone"></i>
+        </button>
+
+        <!-- Send Message Button -->
+        <button type="submit" id="sendBtn" class="action-btn send-btn" title="إرسال الرسالة">
+          <i class="fa-solid fa-paper-plane"></i>
+        </button>
+      </form>
+    </footer>
+
+  </div>
+
+  <!-- ==================== MODALS ==================== -->
+
+  <!-- 1. User Name Selection / Edit Modal -->
+  <div id="userNameModal" class="modal-backdrop" style="display: none;">
+    <div class="modal-box modal-user-select">
+      <div class="modal-header">
+        <div class="modal-title-box">
+          <div class="modal-icon"><i class="fa-solid fa-user-pen"></i></div>
+          <div>
+            <h3>من أنت في عائلة يحيي صبيح؟</h3>
+            <p>اختر اسمك من القائمة أو اكتب اسماً جديداً</p>
+          </div>
+        </div>
+        <button class="modal-close-btn" id="closeUserModalBtn" style="display: none;">
+          <i class="fa-solid fa-xmark"></i>
+        </button>
+      </div>
+
+      <div class="modal-body">
+        <!-- Preset Family Member Badges -->
+        <div class="preset-members-container">
+          <div class="preset-header-row">
+            <label class="modal-label">اختر اسمك مباشرة من أفراد العائلة:</label>
+            <button type="button" id="openBulkFromUserModalBtn" class="btn-text-link" title="إدخال أو تعديل جميع الأسماء">
+              <i class="fa-solid fa-users-gear"></i> إدخال الكل دفعة واحدة
+            </button>
+          </div>
+          <div id="memberPresetGrid" class="member-preset-grid">
+            <!-- Dynamically populated member cards -->
+          </div>
+        </div>
+
+        <div class="modal-divider">
+          <span>أو اكتب اسمك يدوياً</span>
+        </div>
+
+        <!-- Manual Name Input -->
+        <div class="manual-name-container">
+          <div class="input-with-icon manual-name-input-wrapper">
+            <i class="fa-solid fa-user"></i>
+            <input 
+              type="text" 
+              id="customNameInput" 
+              placeholder="اكتب اسمك أو لقبك هنا..." 
+              maxlength="40" 
+              autocomplete="name">
+          </div>
+        </div>
+
+        <!-- Avatar Selection & Capture Section -->
+        <div class="avatar-selection-section">
+          <label class="modal-label"><i class="fa-solid fa-camera-retro"></i> صورتك الشخصية في شات العائلة:</label>
+          <div class="avatar-customizer-card">
+            <!-- Active Avatar Preview Box -->
+            <div class="avatar-preview-box">
+              <div id="userModalAvatarPreview" class="user-modal-avatar-preview">
+                <span id="userModalAvatarInitial">ي</span>
+                <img id="userModalAvatarImg" src="" alt="avatar" style="display: none;">
+              </div>
+              <div class="avatar-status-badge" title="جاهزة للعرض">
+                <i class="fa-solid fa-circle-check"></i>
+              </div>
+            </div>
+
+            <!-- Avatar Action Buttons -->
+            <div class="avatar-options-col">
+              <div class="avatar-btn-row">
+                <button type="button" id="uploadAvatarBtn" class="btn btn-outline btn-sm">
+                  <i class="fa-solid fa-image"></i> رفع صورة
+                </button>
+                <button type="button" id="openCameraAvatarBtn" class="btn btn-outline btn-sm">
+                  <i class="fa-solid fa-camera"></i> التقاط بالكاميرا
+                </button>
+                <button type="button" id="togglePresetAvatarsBtn" class="btn btn-ghost btn-sm">
+                  <i class="fa-solid fa-face-smile"></i> رموز عائلية
+                </button>
+              </div>
+
+              <div class="avatar-sub-actions">
+                <button type="button" id="removeAvatarBtn" class="btn-text-danger" style="display: none;">
+                  <i class="fa-solid fa-trash-can"></i> استخدام الحرف الأول فقط
+                </button>
+              </div>
+
+              <!-- Hidden File Inputs -->
+              <input type="file" id="avatarFileInput" accept="image/*" style="display: none;">
+              <input type="file" id="avatarCameraInput" accept="image/*" capture="user" style="display: none;">
+            </div>
+          </div>
+
+          <!-- Preset Illustrated Avatars Drawer (Collapsible) -->
+          <div id="presetAvatarsDrawer" class="preset-avatars-drawer" style="display: none;">
+            <div class="preset-avatars-header">
+              <span>اختر شخصية تعبيرية لعائلتك:</span>
+              <button type="button" id="closePresetAvatarsBtn" class="btn-icon-mini"><i class="fa-solid fa-xmark"></i></button>
+            </div>
+            <div id="presetAvatarsGrid" class="preset-avatars-grid">
+              <!-- Illustrated Avatar Cards injected dynamically -->
+            </div>
+          </div>
+        </div>
+      </div>
+
+      <div class="modal-footer">
+        <button id="saveUserNameBtn" class="btn btn-primary btn-block">
+          <i class="fa-solid fa-check"></i> تأكيد وبدء المحادثة
+        </button>
+      </div>
+    </div>
+  </div>
+
+  <!-- 1.1 Bulk Family Names Manager Modal (All Names at once) -->
+  <div id="bulkMembersModal" class="modal-backdrop" style="display: none;">
+    <div class="modal-box modal-large">
+      <div class="modal-header">
+        <div class="modal-title-box">
+          <div class="modal-icon"><i class="fa-solid fa-users-gear"></i></div>
+          <div>
+            <h3>إدخال وإدارة أسماء العائلة دفعة واحدة</h3>
+            <p>أدخل أو الصق جميع أسماء أفراد الأسرة مرة واحدة لتظهر في قائمة الاختيار السريع</p>
+          </div>
+        </div>
+        <button class="modal-close-btn" id="closeBulkModalBtn">
+          <i class="fa-solid fa-xmark"></i>
+        </button>
+      </div>
+
+      <div class="modal-body">
+        <div class="bulk-instructions-card">
+          <div class="instruction-row">
+            <i class="fa-solid fa-circle-info"></i>
+            <span>اكتب كل اسم في سطر مستقل، أو افصل بين الأسماء بفواصل (، أو ,). يمكنك نسخ ولصق أسماء العائلة بالكامل هنا.</span>
+          </div>
+          <div class="bulk-toolbar">
+            <div class="detected-badge">
+              <i class="fa-solid fa-users"></i>
+              <span>تم التعرف على: <strong id="bulkDetectedCount">0</strong> فرد</span>
+            </div>
+            <div class="toolbar-btns">
+              <button type="button" id="loadSampleNamesBtn" class="btn btn-outline btn-sm">
+                <i class="fa-solid fa-wand-magic-sparkles"></i> نموذج عائلي مقترح
+              </button>
+              <button type="button" id="clearBulkInputBtn" class="btn btn-ghost btn-sm">
+                <i class="fa-solid fa-trash-can"></i> مسح المربع
+              </button>
+            </div>
+          </div>
+        </div>
+
+        <div class="form-group" style="margin-top: 14px;">
+          <label for="bulkNamesTextarea" class="modal-label">قائمة أسماء أفراد العائلة:</label>
+          <textarea 
+            id="bulkNamesTextarea" 
+            class="bulk-names-textarea" 
+            rows="7" 
+            placeholder="يحيي صبيح (الوالد)&#10;أم محمد (الوالدة)&#10;محمد يحيي صبيح&#10;أحمد يحيي صبيح&#10;محمود يحيي صبيح&#10;سارة يحيي صبيح&#10;فاطمة يحيي صبيح..."></textarea>
+        </div>
+
+        <!-- Live Badges Preview -->
+        <div class="bulk-preview-section">
+          <label class="modal-label">معاينة بطاقات أفراد العائلة (<span id="previewBadgesCount">0</span>):</label>
+          <div id="bulkNamesPreviewGrid" class="bulk-preview-grid">
+            <!-- Live Preview of Avatar Pills -->
+          </div>
+        </div>
+      </div>
+
+      <div class="modal-footer">
+        <button id="saveBulkNamesBtn" class="btn btn-primary">
+          <i class="fa-solid fa-check-double"></i> حفظ وتحديث دليل العائلة
+        </button>
+        <button id="cancelBulkModalBtn" class="btn btn-ghost">إلغاء</button>
+      </div>
+    </div>
+  </div>
+
+  <!-- 2. Delete Confirmation Modal (Enhanced with Double Confirmation & Safety Warning) -->
+  <div id="deleteModal" class="modal-backdrop" style="display: none;">
+    <div class="modal-box modal-danger">
+      <div class="modal-header">
+        <div class="modal-title-box">
+          <div class="modal-icon danger"><i class="fa-solid fa-triangle-exclamation"></i></div>
+          <div>
+            <h3>تأكيد أمان حذف الرسالة</h3>
+            <p>يرجى التأكيد لمنع حذف الرسائل عن طريق الخطأ</p>
+          </div>
+        </div>
+        <button class="modal-close-btn" id="closeDeleteModalBtn" title="إلغاء">
+          <i class="fa-solid fa-xmark"></i>
+        </button>
+      </div>
+
+      <div class="modal-body">
+        <!-- Message Context & Details -->
+        <div class="delete-msg-info-card">
+          <div class="delete-msg-meta">
+            <div class="delete-sender-info">
+              <span class="delete-avatar-mini" id="deleteMsgAvatar">م</span>
+              <strong id="deleteMsgSender">المرسل</strong>
+            </div>
+            <span class="delete-msg-time" id="deleteMsgTime">اليوم، 12:00 م</span>
+          </div>
+          <div class="message-preview-to-delete" id="deleteMessagePreview">
+            <!-- Text or media preview snippet -->
+          </div>
+        </div>
+
+        <!-- Additional Safety Checkbox Confirmation -->
+        <div class="delete-safety-box">
+          <label class="delete-checkbox-label" for="deleteSafetyCheck">
+            <input type="checkbox" id="deleteSafetyCheck">
+            <span class="checkbox-custom-ui"></span>
+            <span class="checkbox-text">أؤكد رغبتي في حذف هذه الرسالة نهائياً (تأكيد الأمان)</span>
+          </label>
+        </div>
+
+        <!-- Prominent Warning Box -->
+        <div class="warning-alert-card">
+          <i class="fa-solid fa-circle-exclamation"></i>
+          <div>
+            <strong>تنبيه هام:</strong>
+            <span>سيتم حذف الرسالة ومرفقاتها نهائياً من جميع أجهزة وهواتف أفراد العائلة ولا يمكن التراجع أو الاسترجاع.</span>
+          </div>
+        </div>
+      </div>
+
+      <div class="modal-footer">
+        <button id="confirmDeleteBtn" class="btn btn-danger" disabled>
+          <i class="fa-solid fa-trash-can"></i> نعم، حذف الرسالة نهائياً
+        </button>
+        <button id="cancelDeleteBtn" class="btn btn-ghost">تراجع وإلغاء</button>
+      </div>
+    </div>
+  </div>
+
+  <!-- 3. Image Lightbox Modal (With Slideshow & Navigation) -->
+  <div id="lightboxModal" class="lightbox-backdrop" style="display: none;">
+    <button id="closeLightboxBtn" class="lightbox-close-btn" title="إغلاق">
+      <i class="fa-solid fa-xmark"></i>
+    </button>
+    <button id="lightboxPrevBtn" class="lightbox-nav-btn lightbox-prev" title="الصورة السابقة">
+      <i class="fa-solid fa-chevron-right"></i>
+    </button>
+    <button id="lightboxNextBtn" class="lightbox-nav-btn lightbox-next" title="الصورة التالية">
+      <i class="fa-solid fa-chevron-left"></i>
+    </button>
+    <div class="lightbox-content">
+      <img id="lightboxImg" src="" alt="صورة مكبرة">
+      <div class="lightbox-info">
+        <span id="lightboxSender">المرسل</span> • <span id="lightboxTime">الوقت</span>
+        <div class="lightbox-tools">
+          <a id="lightboxDownloadBtn" href="#" download class="lightbox-download-link" title="تحميل الصورة">
+            <i class="fa-solid fa-download"></i> حفظ الصورة
+          </a>
+        </div>
+      </div>
+    </div>
+  </div>
+
+  <!-- 4. Media Gallery & Family Albums Modal -->
+  <div id="mediaGalleryModal" class="modal-backdrop" style="display: none;">
+    <div class="modal-box modal-large">
+      <div class="modal-header">
+        <div class="modal-title-box">
+          <div class="modal-icon"><i class="fa-solid fa-photo-film"></i></div>
+          <div>
+            <h3>معرض وسائط وألبومات عائلة يحيي صبيح</h3>
+            <p>جميع الصور، الفيديوهات، والرسائل الصوتية، وجدار ذكريات الأسرة</p>
+          </div>
+        </div>
+        <button class="modal-close-btn" id="closeGalleryModalBtn">
+          <i class="fa-solid fa-xmark"></i>
+        </button>
+      </div>
+      <div class="gallery-tabs">
+        <button class="gallery-tab active" data-tab="images"><i class="fa-solid fa-image"></i> الصور (<span id="galleryImgCount">0</span>)</button>
+        <button class="gallery-tab" data-tab="albums"><i class="fa-solid fa-images"></i> ألبومات الذكريات (<span id="galleryAlbumCount">0</span>)</button>
+        <button class="gallery-tab" data-tab="videos"><i class="fa-solid fa-video"></i> الفيديوهات (<span id="galleryVidCount">0</span>)</button>
+        <button class="gallery-tab" data-tab="audios"><i class="fa-solid fa-microphone"></i> الصوتيات (<span id="galleryAudCount">0</span>)</button>
+        <button class="gallery-tab" data-tab="links"><i class="fa-solid fa-link"></i> الروابط (<span id="galleryLinkCount">0</span>)</button>
+      </div>
+
+      <!-- Album Category Filters (Shown when albums tab active) -->
+      <div id="albumFilterBar" class="album-filter-bar" style="display: none;">
+        <div class="album-filter-pills">
+          <button class="album-pill active" data-album="all">🌟 جميع الذكريات</button>
+          <button class="album-pill" data-album="trips">🏖️ رحلات وتجمعات</button>
+          <button class="album-pill" data-album="vintage">🕰️ ذكريات زمان وصور نادرة</button>
+          <button class="album-pill" data-album="celebrations">🎓 أفراح وتخرج</button>
+          <button class="album-pill" data-album="daily">☕ جلسات الدار واليوميات</button>
+        </div>
+        <button type="button" id="openAddMemoryModalBtn" class="btn btn-outline btn-sm">
+          <i class="fa-solid fa-plus"></i> إضافة ذكرى جديدة
+        </button>
+      </div>
+
+      <div class="modal-body gallery-body" id="galleryGrid">
+        <!-- Media thumbnails rendered here -->
+      </div>
+    </div>
+  </div>
+
+  <!-- 4.1 Add Memory to Album Modal -->
+  <div id="addMemoryModal" class="modal-backdrop" style="display: none;">
+    <div class="modal-box">
+      <div class="modal-header">
+        <div class="modal-title-box">
+          <div class="modal-icon"><i class="fa-solid fa-camera-retro"></i></div>
+          <div>
+            <h3>إضافة صورة إلى ألبوم ذكريات العائلة</h3>
+            <p>خلّد اللحظات الجميلة والمناسبات السعيدة لعائلة صبيح</p>
+          </div>
+        </div>
+        <button class="modal-close-btn" id="closeAddMemoryModalBtn">
+          <i class="fa-solid fa-xmark"></i>
+        </button>
+      </div>
+      <div class="modal-body">
+        <div class="form-group">
+          <label class="modal-label">اختر ألبوم الذكريات:</label>
+          <select id="memoryAlbumCategory" class="modal-select">
+            <option value="trips">🏖️ رحلات وتجمعات العائلة</option>
+            <option value="vintage">🕰️ ذكريات زمان وصور نادرة</option>
+            <option value="celebrations">🎓 أفراح، نجاح وتخرج</option>
+            <option value="daily">☕ جلسات الدار واليوميات</option>
+          </select>
+        </div>
+        <div class="form-group">
+          <label class="modal-label">عنوان أو تعليق الذكرى:</label>
+          <input type="text" id="memoryCaptionInput" placeholder="مثال: رحلة العائلة إلى البحر، صيف 2024" maxlength="100">
+        </div>
+        <div class="form-group">
+          <label class="modal-label">الصورة:</label>
+          <div class="memory-upload-dropzone" id="memoryDropzone">
+            <i class="fa-solid fa-cloud-arrow-up"></i>
+            <span>اضغط لاختيار صورة الذكرى</span>
+            <img id="memoryPreviewImg" src="" alt="preview" style="display: none;">
+            <input type="file" id="memoryFileInput" accept="image/*" style="display: none;">
+          </div>
+        </div>
+      </div>
+      <div class="modal-footer">
+        <button id="saveMemoryBtn" class="btn btn-primary btn-block">
+          <i class="fa-solid fa-check"></i> حفظ في ألبوم العائلة
+        </button>
+      </div>
+    </div>
+  </div>
+
+  <!-- 7. Pinned Family Announcement Management Modal -->
+  <div id="announcementModal" class="modal-backdrop" style="display: none;">
+    <div class="modal-box">
+      <div class="modal-header">
+        <div class="modal-title-box">
+          <div class="modal-icon"><i class="fa-solid fa-thumbtack"></i></div>
+          <div>
+            <h3>لوحة الإعلانات العائلية المثبتة</h3>
+            <p>تثبيت تنبيه أو موعد مهم يظهر في أعلى الشات لجميع أفراد العائلة</p>
+          </div>
+        </div>
+        <button class="modal-close-btn" id="closeAnnouncementModalBtn">
+          <i class="fa-solid fa-xmark"></i>
+        </button>
+      </div>
+      <div class="modal-body">
+        <div class="form-group">
+          <label class="modal-label">نماذج إعلانات جاهزة للاختيار السريع:</label>
+          <div class="announcement-presets-row">
+            <button type="button" class="announcement-preset-chip" data-title="موعد الاجتماع العائلي الأسبوعي" data-text="يسرنا تذكيركم بموعد لقاء العائلة يوم الجمعة المباركة بعد صلاة العصر في بيت الوالد بإذن الله 🌹">
+              📅 اجتماع الجمعة
+            </button>
+            <button type="button" class="announcement-preset-chip" data-title="عزومة غداء ومأدبة عائلية" data-text="أهلاً وسهلاً بجميع أفراد عائلة يحيي صبيح على مأدبة الغداء، بانتظاركم جميعاً بحب وسعادة 🍽️">
+              🍽️ مأدبة عائلية
+            </button>
+            <button type="button" class="announcement-preset-chip" data-title="تهنئة وتبريكات عائلية" data-text="نبارك ونهنئ بالنجاح والتميز، جعلها الله بداية لأفراح دائمة في ديارنا 🎓🎉">
+              🎉 تهنئة وتبريكات
+            </button>
+            <button type="button" class="announcement-preset-chip" data-title="تذكير بصيام ومناسبة مباركة" data-text="تذكير بصيام يوم مبارك والأعمال الصالحة، تقبل الله طاعاتكم جميعاً 🤲">
+              🤲 تذكير طاعة
+            </button>
+          </div>
+        </div>
+        <div class="form-group">
+          <label class="modal-label" for="announcementTitleInput">عنوان الإعلان:</label>
+          <input type="text" id="announcementTitleInput" placeholder="مثال: موعد الاجتماع العائلي القادم..." maxlength="80">
+        </div>
+        <div class="form-group">
+          <label class="modal-label" for="announcementTextInput">نص الإعلان والتفاصيل:</label>
+          <textarea id="announcementTextInput" rows="4" placeholder="اكتب تفاصيل الإعلان أو الموعد هنا..." maxlength="500"></textarea>
+        </div>
+      </div>
+      <div class="modal-footer modal-actions-between">
+        <button id="unpinAnnouncementBtn" class="btn btn-outline-danger" style="display: none;">
+          <i class="fa-solid fa-trash-can"></i> إزالة التثبيت
+        </button>
+        <button id="saveAnnouncementBtn" class="btn btn-primary">
+          <i class="fa-solid fa-thumbtack"></i> تثبيت الإعلان في أعلى الشات
+        </button>
+      </div>
+    </div>
+  </div>
+
+  <!-- 8. Family Events & Calendar Modal -->
+  <div id="eventsCalendarModal" class="modal-backdrop" style="display: none;">
+    <div class="modal-box modal-large">
+      <div class="modal-header">
+        <div class="modal-title-box">
+          <div class="modal-icon"><i class="fa-solid fa-calendar-days"></i></div>
+          <div>
+            <h3>تقويم المناسبات العائلية والأعياد</h3>
+            <p>متابعة أعياد الميلاد، ذكرى الزواج، التخرج، واللقاءات الدورية لعائلة صبيح</p>
+          </div>
+        </div>
+        <button class="modal-close-btn" id="closeEventsModalBtn">
+          <i class="fa-solid fa-xmark"></i>
+        </button>
+      </div>
+      <div class="modal-body">
+        <div class="events-toolbar">
+          <div class="events-stats-pill">
+            <i class="fa-solid fa-bell"></i>
+            <span>المناسبات القادمة: <strong id="upcomingEventsCount">0</strong> مناسبة</span>
+          </div>
+          <button type="button" id="toggleAddEventFormBtn" class="btn btn-primary btn-sm">
+            <i class="fa-solid fa-plus"></i> إضافة مناسبة جديدة
+          </button>
+        </div>
+
+        <!-- Add Event Collapsible Card -->
+        <div id="addEventFormCard" class="add-event-form-card" style="display: none;">
+          <h4><i class="fa-solid fa-calendar-plus"></i> تسجيل مناسبة عائلية جديدة</h4>
+          <div class="add-event-grid">
+            <div class="form-group">
+              <label class="modal-label">نوع المناسبة:</label>
+              <select id="eventCategorySelect" class="modal-select">
+                <option value="birthday">🎂 عيد ميلاد</option>
+                <option value="anniversary">💍 ذكرى زواج</option>
+                <option value="graduation">🎓 تخرج ونجاح</option>
+                <option value="gathering">👨‍👩‍👧‍👦 اجتماع عائلي دوري</option>
+                <option value="islamic">🌙 عيد ومناسبة دينية</option>
+                <option value="other">🎉 مناسبة خاصة أخرى</option>
+              </select>
+            </div>
+            <div class="form-group">
+              <label class="modal-label">عنوان المناسبة:</label>
+              <input type="text" id="eventTitleInput" placeholder="مثال: عيد ميلاد يحيي صبيح" maxlength="80">
+            </div>
+            <div class="form-group">
+              <label class="modal-label">تاريخ المناسبة:</label>
+              <input type="date" id="eventDateInput" class="modal-date-input">
+            </div>
+            <div class="form-group">
+              <label class="modal-label">صاحب المناسبة / العضو المعني:</label>
+              <input type="text" id="eventMemberInput" placeholder="اسم صاحب المناسبة (اختياري)">
+            </div>
+          </div>
+          <div class="form-group">
+            <label class="modal-label">ملاحظات إضافية:</label>
+            <input type="text" id="eventNotesInput" placeholder="مثال: التجمع في حديقة المنزل الساعة 7 مساءً">
+          </div>
+          <div class="event-form-actions">
+            <button type="button" id="saveNewEventBtn" class="btn btn-primary btn-sm"><i class="fa-solid fa-check"></i> حفظ المناسبة</button>
+            <button type="button" id="cancelAddEventBtn" class="btn btn-ghost btn-sm"><i class="fa-solid fa-xmark"></i> إلغاء</button>
+          </div>
+        </div>
+
+        <!-- Events List Stream -->
+        <div id="eventsListContainer" class="events-list-container">
+          <!-- Populated dynamically -->
+        </div>
+      </div>
+    </div>
+  </div>
+
+  <!-- 9. Create Family Poll Modal -->
+  <div id="pollCreateModal" class="modal-backdrop" style="display: none;">
+    <div class="modal-box">
+      <div class="modal-header">
+        <div class="modal-title-box">
+          <div class="modal-icon"><i class="fa-solid fa-square-poll-vertical"></i></div>
+          <div>
+            <h3>إنشاء استطلاع رأي عائلي وتصويت</h3>
+            <p>اطرح سؤالاً على الأسرة لاتخاذ قرار عائلي مشترك</p>
+          </div>
+        </div>
+        <button class="modal-close-btn" id="closePollModalBtn">
+          <i class="fa-solid fa-xmark"></i>
+        </button>
+      </div>
+      <div class="modal-body">
+        <div class="form-group">
+          <label class="modal-label" for="pollQuestionInput">سؤال الاستطلاع:</label>
+          <input type="text" id="pollQuestionInput" placeholder="مثال: أين نقضي عطلة نهاية الأسبوع القادمة؟" maxlength="150">
+        </div>
+        
+        <div class="form-group">
+          <label class="modal-label">خيارات التصويت (2 إلى 6 خيارات):</label>
+          <div id="pollOptionsList" class="poll-options-inputs-list">
+            <div class="poll-option-input-row">
+              <span class="poll-option-num">1</span>
+              <input type="text" class="poll-opt-input" placeholder="الخيار الأول (مثال: نزهة برية)" maxlength="60">
+            </div>
+            <div class="poll-option-input-row">
+              <span class="poll-option-num">2</span>
+              <input type="text" class="poll-opt-input" placeholder="الخيار الثاني (مثال: زيارة الشاطئ)" maxlength="60">
+            </div>
+          </div>
+          <button type="button" id="addPollOptionBtn" class="btn-text-link" style="margin-top: 8px;">
+            <i class="fa-solid fa-plus"></i> إضافة خيار إضافي
+          </button>
+        </div>
+
+        <div class="form-group" style="margin-top: 14px;">
+          <label class="toggle-label">
+            <input type="checkbox" id="pollMultiChoice">
+            <span>السماح باختيار أكثر من إجابة (تصويت متعدد)</span>
+          </label>
+        </div>
+      </div>
+      <div class="modal-footer">
+        <button id="submitPollBtn" class="btn btn-primary btn-block">
+          <i class="fa-solid fa-paper-plane"></i> نشر استطلاع الرأي في الدردشة
+        </button>
+      </div>
+    </div>
+  </div>
+
+  <!-- 5. Live Camera Snapshot Modal for Avatars & Selfies -->
+  <div id="cameraSnapshotModal" class="modal-backdrop" style="display: none;">
+    <div class="modal-box modal-camera-box">
+      <div class="modal-header">
+        <div class="modal-title-box">
+          <div class="modal-icon"><i class="fa-solid fa-camera"></i></div>
+          <div>
+            <h3>التقاط صورة شخصية بالكاميرا</h3>
+            <p>اضبط وجهك داخل الإطار ثم اضغط على زر الالتقاط</p>
+          </div>
+        </div>
+        <button class="modal-close-btn" id="closeCameraModalBtn">
+          <i class="fa-solid fa-xmark"></i>
+        </button>
+      </div>
+
+      <div class="modal-body modal-camera-body">
+        <div class="camera-stream-container">
+          <!-- Video Viewport -->
+          <video id="cameraVideo" autoplay playsinline muted></video>
+          <!-- Captured Photo Result Viewport -->
+          <img id="cameraCapturedImg" src="" alt="Captured" style="display: none;">
+          <!-- Circular Face Guide Overlay -->
+          <div class="camera-guide-ring" id="cameraGuideRing">
+            <span class="guide-corner tl"></span>
+            <span class="guide-corner tr"></span>
+            <span class="guide-corner bl"></span>
+            <span class="guide-corner br"></span>
+          </div>
+          <!-- Shutter Flash Effect -->
+          <div class="camera-flash-fx" id="cameraFlashFx"></div>
+          <!-- Hidden Processing Canvas -->
+          <canvas id="cameraCanvas" style="display: none;"></canvas>
+        </div>
+
+        <div class="camera-controls-toolbar">
+          <button type="button" id="switchCameraFacingBtn" class="btn btn-ghost btn-sm" title="تبديل الكاميرا (الأمامية / الخلفية)">
+            <i class="fa-solid fa-camera-rotate"></i> تبديل الكاميرا
+          </button>
+          <span id="cameraStatusLabel" class="camera-status-hint">الكاميرا جاهزة</span>
+        </div>
+      </div>
+
+      <div class="modal-footer modal-camera-footer">
+        <!-- Before Capture Buttons -->
+        <div id="cameraBeforeCaptureControls" class="camera-btn-group">
+          <button id="snapPhotoBtn" class="btn btn-primary btn-lg">
+            <i class="fa-solid fa-circle-dot"></i> التقاط الصورة
+          </button>
+          <button id="cancelCameraBtn" class="btn btn-ghost">إلغاء</button>
+        </div>
+
+        <!-- After Capture Buttons -->
+        <div id="cameraAfterCaptureControls" class="camera-btn-group" style="display: none;">
+          <button id="useCapturedPhotoBtn" class="btn btn-primary">
+            <i class="fa-solid fa-check"></i> اعتماد الصورة الشخصية
+          </button>
+          <button id="retakePhotoBtn" class="btn btn-outline">
+            <i class="fa-solid fa-rotate-left"></i> إعادة الالتقاط
+          </button>
+        </div>
+      </div>
+    </div>
+  </div>
+
+  <!-- 6. Settings & Firebase Config Modal -->
+  <div id="settingsModal" class="modal-backdrop" style="display: none;">
+    <div class="modal-box">
+      <div class="modal-header">
+        <div class="modal-title-box">
+          <div class="modal-icon"><i class="fa-solid fa-sliders"></i></div>
+          <div>
+            <h3>إعدادات المحادثة والاتصال</h3>
+            <p>تخصيص الاتصال بقاعدة بيانات Firebase والتنبيهات</p>
+          </div>
+        </div>
+        <button class="modal-close-btn" id="closeSettingsModalBtn">
+          <i class="fa-solid fa-xmark"></i>
+        </button>
+      </div>
+      <div class="modal-body">
+        <div class="settings-section">
+          <h4><i class="fa-solid fa-user-gear"></i> الملف الشخصي</h4>
+          <div class="setting-item">
+            <span>اسمك الحالي:</span>
+            <strong id="settingsCurrentName" class="text-accent">محمد صبيح</strong>
+            <button id="settingsChangeNameBtn" class="btn btn-outline btn-sm">تغيير الاسم</button>
+          </div>
+        </div>
+
+        <div class="settings-section">
+          <h4><i class="fa-solid fa-users"></i> دليل أسماء أفراد العائلة</h4>
+          <div class="setting-item">
+            <div>
+              <span>الأسماء المسجلة:</span>
+              <strong id="settingsFamilyCount" class="text-accent" style="margin-right: 6px;">7 أفراد</strong>
+            </div>
+            <button id="settingsManageBulkBtn" class="btn btn-primary btn-sm">
+              <i class="fa-solid fa-users-gear"></i> إدخال وتعديل الأسماء
+            </button>
+          </div>
+        </div>
+
+        <div class="settings-section">
+          <h4><i class="fa-solid fa-database"></i> إعدادات Firebase Cloud</h4>
+          <p class="settings-desc">
+            التطبيق مهيأ للاتصال التلقائي بـ Firebase Realtime Database و Storage. يمكنك تخصيص مفاتيح مشروعك هنا أو استخدام الإعدادات الافتراضية.
+          </p>
+          
+          <div class="form-group">
+            <label class="modal-label" for="fbApiKey">API Key:</label>
+            <input type="text" id="fbApiKey" placeholder="AIzaSy...">
+          </div>
+          <div class="form-group">
+            <label class="modal-label" for="fbDbUrl">Database URL:</label>
+            <input type="text" id="fbDbUrl" placeholder="https://your-project-default-rtdb.firebaseio.com">
+          </div>
+          <div class="form-group">
+            <label class="modal-label" for="fbStorageBucket">Storage Bucket:</label>
+            <input type="text" id="fbStorageBucket" placeholder="your-project.appspot.com">
+          </div>
+          <div class="form-group">
+            <label class="modal-label" for="fbProjectId">Project ID:</label>
+            <input type="text" id="fbProjectId" placeholder="yahia-sobeih-family">
+          </div>
+
+          <div class="settings-actions">
+            <button id="saveFbConfigBtn" class="btn btn-primary btn-sm">
+              <i class="fa-solid fa-floppy-disk"></i> حفظ وإعادة الاتصال
+            </button>
+            <button id="resetFbConfigBtn" class="btn btn-ghost btn-sm">
+              استعادة الإعدادات الافتراضية
+            </button>
+          </div>
+        </div>
+
+        <div class="settings-section">
+          <h4><i class="fa-solid fa-bell"></i> التنبيهات والأصوات</h4>
+          <label class="toggle-label">
+            <input type="checkbox" id="soundToggle" checked>
+            <span>تشغيل صوت التنبيه عند وصول رسالة جديدة</span>
+          </label>
+        </div>
+      </div>
+    </div>
+  </div>
+
+  <!-- In-App Floating Toast Container -->
+  <div id="appToastContainer" class="toast-notification-container"></div>
+
+  <!-- Audio Notification Sound (Generated / Web Audio) -->
+  
+  <!-- Main Script -->
+  <script src="./app.js"></script>
+</body>
+</html>

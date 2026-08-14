@@ -1,0 +1,19 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 512 512" width="512" height="512">
+    <defs>
+      <linearGradient id="grad" x1="0%" y1="0%" x2="100%" y2="100%">
+        <stop offset="0%" stop-color="#0284c7" />
+        <stop offset="50%" stop-color="#0f172a" />
+        <stop offset="100%" stop-color="#0369a1" />
+      </linearGradient>
+    </defs>
+    <rect width="512" height="512" rx="112.64" fill="url(#grad)"/>
+    <circle cx="256" cy="256" r="194.56" fill="none" stroke="#38bdf8" stroke-width="10.24" stroke-dasharray="12 8" opacity="0.6"/>
+    <circle cx="256" cy="256" r="174.08" fill="#1e293b" fill-opacity="0.85"/>
+    
+    <!-- Family Symbol / House with Heart -->
+    <path d="M179.2 245.76 L256 179.2 L332.8 245.76 V332.8 H179.2 Z" fill="none" stroke="#38bdf8" stroke-width="14.336" stroke-linejoin="round" stroke-linecap="round"/>
+    <path d="M256 266.24 C235.52 245.76, 220.16 266.24, 240.64 296.96 L256 312.32 L271.36 296.96 C291.84 266.24, 276.48 245.76, 256 266.24 Z" fill="#f43f5e"/>
+    
+    <!-- Text -->
+    <text x="256" y="394.24" font-family="'Tajawal', 'Segoe UI', Tahoma, sans-serif" font-size="43.52" font-weight="bold" fill="#f8fafc" text-anchor="middle">عائلة صبيح</text>
+  </svg>
