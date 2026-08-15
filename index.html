@@ -5,16 +5,31 @@
   <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
   <title>عائلة يحيي صبيح | الدردشة العائلية الفورية</title>
   
-  <!-- PWA Meta Tags -->
-  <meta name="description" content="تطبيق المحادثة الفوري ومشاركة الصور والفيديوهات والروابط لعائلة يحيي صبيح">
+  <!-- PWA Meta Tags & Icons -->
+  <meta name="description" content="تطبيق المحادثة الفوري ومشاركة الصور والفيديوهات والروابط والمناسبات لعائلة يحيي صبيح">
   <meta name="theme-color" content="#0f172a">
   <meta name="mobile-web-app-capable" content="yes">
   <meta name="apple-mobile-web-app-capable" content="yes">
   <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
   <meta name="apple-mobile-web-app-title" content="عائلة صبيح">
-  <link rel="manifest" href="./manifest.json">
-  <link rel="icon" type="image/svg+xml" href="./icon.svg">
-  <link rel="apple-touch-icon" href="./icon.svg">
+  <meta name="application-name" content="عائلة يحيي صبيح">
+  <meta name="msapplication-TileColor" content="#0f172a">
+  <meta name="msapplication-TileImage" content="/icon-192.png">
+
+  <!-- Manifest -->
+  <link rel="manifest" href="/manifest.json">
+
+  <!-- Favicons & Icons -->
+  <link rel="icon" type="image/png" sizes="32x32" href="/favicon-32x32.png">
+  <link rel="icon" type="image/png" sizes="192x192" href="/icon-192.png">
+  <link rel="icon" type="image/png" sizes="512x512" href="/icon-512.png">
+  <link rel="icon" type="image/svg+xml" href="/icon.svg">
+  <link rel="shortcut icon" href="/favicon.ico">
+
+  <!-- iOS Safari Apple Touch Icons -->
+  <link rel="apple-touch-icon" href="/apple-touch-icon.png">
+  <link rel="apple-touch-icon" sizes="180x180" href="/apple-touch-icon-180x180.png">
+  <link rel="apple-touch-icon-precomposed" sizes="180x180" href="/apple-touch-icon.png">
 
   <!-- Google Fonts: Tajawal -->
   <link rel="preconnect" href="https://fonts.googleapis.com">
@@ -23,11 +38,6 @@
 
   <!-- FontAwesome 6 CDN -->
   <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.5.1/css/all.min.css" integrity="sha512-DTOQO9RWCH3ppGqcWaEA1BIZOC6xxalwEsw9c2QQeAIftl+Vegovlnee1c9QX4TctnWMn13TZye+giMm8e2LwA==" crossorigin="anonymous" referrerpolicy="no-referrer" />
-
-  <!-- Firebase SDKs (v10 Compat Mode) -->
-  <script src="https://www.gstatic.com/firebasejs/10.8.0/firebase-app-compat.js"></script>
-  <script src="https://www.gstatic.com/firebasejs/10.8.0/firebase-database-compat.js"></script>
-  <script src="https://www.gstatic.com/firebasejs/10.8.0/firebase-storage-compat.js"></script>
 
   <!-- Custom Stylesheet -->
   <link rel="stylesheet" href="./style.css">
@@ -63,10 +73,10 @@
         <div class="header-actions">
           <!-- Active User Badge & Switcher -->
           <button id="userProfileBtn" class="user-profile-badge" title="تغيير اسم العضو أو اختيار اسم من القائمة">
-            <span class="user-avatar-pill" id="headerUserAvatar">م</span>
+            <span class="user-avatar-pill" id="headerUserAvatar">ي</span>
             <div class="user-meta">
               <span class="user-label">أنت الآن:</span>
-              <strong class="user-name-display" id="headerUserName">جارِ التحميل...</strong>
+              <strong class="user-name-display" id="headerUserName">يحيي صبيح (الوالد)</strong>
             </div>
             <i class="fa-solid fa-chevron-down profile-arrow"></i>
           </button>
@@ -93,6 +103,12 @@
             <i class="fa-solid fa-magnifying-glass"></i>
           </button>
 
+          <!-- Date Filter / Memory Browser Button -->
+          <button id="dateFilterBtn" class="icon-btn" title="تصفح ذكريات المحادثة حسب التاريخ" aria-label="تصفح باليوم">
+            <i class="fa-solid fa-calendar-day"></i>
+            <span id="dateFilterBadgeDot" class="date-filter-badge-dot" style="display: none;"></span>
+          </button>
+
           <!-- Media Gallery Button -->
           <button id="mediaGalleryBtn" class="icon-btn" title="معرض الوسائط والملفات" aria-label="معرض الوسائط">
             <i class="fa-solid fa-photo-film"></i>
@@ -103,10 +119,10 @@
             <i class="fa-solid fa-gear"></i>
           </button>
 
-          <!-- PWA Install Button (Hidden by default, shown if installable) -->
-          <button id="pwaInstallBtn" class="install-pwa-btn" style="display: none;" title="تثبيت التطبيق على جهازك">
-            <i class="fa-solid fa-cloud-arrow-down"></i>
-            <span>تثبيت</span>
+          <!-- Shortcut & PWA Install Button (Always available for easy desktop/mobile setup) -->
+          <button id="openShortcutModalBtn" class="install-pwa-btn" title="تثبيت التطبيق وعمل اختصار على سطح المكتب أو الهاتف" aria-label="تثبيت واختصار">
+            <i class="fa-solid fa-arrow-down-to-bracket"></i>
+            <span>تثبيت واختصار</span>
           </button>
         </div>
       </div>
@@ -159,6 +175,40 @@
       <div class="pwa-banner-actions">
         <button id="pwaBannerInstallBtn" class="btn btn-primary btn-sm">تثبيت الآن</button>
         <button id="pwaBannerDismissBtn" class="btn btn-ghost btn-sm">لاحقاً</button>
+      </div>
+    </div>
+
+    <!-- Active Date Memory Filter Banner (Shown when a specific date is filtered) -->
+    <div id="dateFilterBanner" class="date-filter-banner" style="display: none;">
+      <div class="date-filter-info">
+        <div class="date-filter-icon-box">
+          <i class="fa-solid fa-calendar-day"></i>
+        </div>
+        <div class="date-filter-text-wrap">
+          <div class="date-filter-title-line">
+            <span class="date-filter-label">تصفح ذكريات يوم:</span>
+            <strong id="activeFilteredDateText" class="active-date-text">اليوم</strong>
+          </div>
+          <span id="activeFilteredDateCount" class="date-filter-count-badge">0 رسالة</span>
+        </div>
+      </div>
+      <div class="date-filter-actions">
+        <button type="button" id="prevDayFilterBtn" class="btn-date-nav" title="اليوم السابق في المحادثة">
+          <i class="fa-solid fa-chevron-right"></i>
+          <span>اليوم السابق</span>
+        </button>
+        <button type="button" id="openDateModalFromBannerBtn" class="btn-date-nav btn-date-change" title="اختيار تاريخ آخر">
+          <i class="fa-regular fa-calendar"></i>
+          <span>تغيير التاريخ</span>
+        </button>
+        <button type="button" id="nextDayFilterBtn" class="btn-date-nav" title="اليوم التالي في المحادثة">
+          <span>اليوم التالي</span>
+          <i class="fa-solid fa-chevron-left"></i>
+        </button>
+        <button type="button" id="clearDateFilterBtn" class="btn-clear-filter" title="إلغاء التصفية وعرض كل المحادثة">
+          <i class="fa-solid fa-xmark"></i>
+          <span>عرض كل المحادثة</span>
+        </button>
       </div>
     </div>
 
@@ -216,6 +266,21 @@
       </div>
     </div>
 
+    <!-- Active Reply-To Preview Bar (WhatsApp Style Quoting) -->
+    <div id="replyPreviewBar" class="reply-preview-bar" style="display: none;">
+      <div class="reply-bar-accent"></div>
+      <div class="reply-bar-content">
+        <div class="reply-bar-header">
+          <i class="fa-solid fa-reply"></i>
+          <span class="reply-header-title">الرد على: <strong class="reply-to-name" id="replyToName">عضو العائلة</strong></span>
+        </div>
+        <div class="reply-to-text" id="replyToText">نص الرسالة المقتبسة...</div>
+      </div>
+      <button id="cancelReplyBtn" type="button" class="reply-cancel-btn" title="إلغاء الرد">
+        <i class="fa-solid fa-xmark"></i>
+      </button>
+    </div>
+
     <!-- Pending Attachment Preview Bar (Above Input Box) -->
     <div id="attachmentPreviewBar" class="attachment-preview-bar" style="display: none;">
       <div class="preview-item-box" id="previewItemBox">
@@ -223,10 +288,14 @@
           <!-- Image preview or file icon -->
         </div>
         <div class="preview-details">
-          <span class="preview-filename" id="previewFilename">image.jpg</span>
-          <span class="preview-filesize" id="previewFilesize">1.2 MB</span>
+          <span class="preview-filename" id="previewFilename">صورة الكاميرا</span>
+          <span class="preview-filesize" id="previewFilesize">جاهزة للمشاركة 📸</span>
         </div>
-        <button id="cancelAttachmentBtn" class="preview-remove-btn" title="إلغاء المرفق">
+        <button id="quickSendAttachmentBtn" type="button" class="preview-quick-send-btn" title="إرسال الصورة فوراً للعائلة">
+          <i class="fa-solid fa-paper-plane"></i>
+          <span>إرسال الآن</span>
+        </button>
+        <button id="cancelAttachmentBtn" type="button" class="preview-remove-btn" title="إلغاء المرفق">
           <i class="fa-solid fa-xmark"></i>
         </button>
       </div>
@@ -277,11 +346,11 @@
           <input type="file" id="fileInput" accept="image/*,video/*,audio/*" style="display: none;">
         </label>
 
-        <!-- Quick Image Camera Button -->
-        <label for="cameraInput" class="action-btn camera-btn" title="التقاط صورة بكاميرا الهاتف" id="cameraLabel">
+        <!-- Quick Image Camera Button (Webcam modal on PC & camera capture on mobile) -->
+        <button type="button" class="action-btn camera-btn" title="التقاط صورة بالكاميرا" id="cameraChatBtn">
           <i class="fa-solid fa-camera"></i>
-          <input type="file" id="cameraInput" accept="image/*" capture="environment" style="display: none;">
-        </label>
+        </button>
+        <input type="file" id="cameraInput" accept="image/*" capture="environment" style="display: none;">
 
         <!-- Family Polls Button -->
         <button type="button" id="createPollBtn" class="action-btn poll-btn" title="إنشاء استطلاع رأي عائلي وتصويت">
@@ -786,6 +855,39 @@
     </div>
   </div>
 
+  <!-- 8.1. Delete Event Confirmation Modal -->
+  <div id="deleteEventConfirmModal" class="modal-backdrop" style="display: none; z-index: 1050;">
+    <div class="modal-box modal-sm">
+      <div class="modal-header">
+        <div class="modal-title-box">
+          <div class="modal-icon icon-danger"><i class="fa-solid fa-trash-can"></i></div>
+          <div>
+            <h3>حذف المناسبة العائلية</h3>
+            <p>تأكيد حذف وإلغاء المناسبة من التقويم</p>
+          </div>
+        </div>
+        <button class="modal-close-btn" id="closeDeleteEventConfirmModalBtn" aria-label="إغلاق">
+          <i class="fa-solid fa-xmark"></i>
+        </button>
+      </div>
+      <div class="modal-body">
+        <p class="delete-event-warning-text">
+          هل أنت متأكد من رغبتك في حذف هذه المناسبة نهائياً من تقويم العائلة؟
+        </p>
+        <div class="delete-event-target-card" id="deleteEventTargetCard">
+          <div class="target-event-title" id="deleteEventTargetTitle">...</div>
+          <div class="target-event-date" id="deleteEventTargetDate"><i class="fa-regular fa-calendar"></i> ...</div>
+        </div>
+      </div>
+      <div class="modal-footer modal-actions-between">
+        <button type="button" class="btn btn-ghost" id="cancelDeleteEventBtn">تراجع وإلغاء</button>
+        <button type="button" class="btn btn-danger" id="confirmDeleteEventActionBtn">
+          <i class="fa-solid fa-trash-can"></i> نعم، حذف المناسبة
+        </button>
+      </div>
+    </div>
+  </div>
+
   <!-- 9. Create Family Poll Modal -->
   <div id="pollCreateModal" class="modal-backdrop" style="display: none;">
     <div class="modal-box">
@@ -846,8 +948,8 @@
         <div class="modal-title-box">
           <div class="modal-icon"><i class="fa-solid fa-camera"></i></div>
           <div>
-            <h3>التقاط صورة شخصية بالكاميرا</h3>
-            <p>اضبط وجهك داخل الإطار ثم اضغط على زر الالتقاط</p>
+            <h3 id="cameraModalTitle">التقاط صورة بالكاميرا</h3>
+            <p id="cameraModalSubtitle">اضبط المشهد داخل الإطار ثم اضغط على زر الالتقاط</p>
           </div>
         </div>
         <button class="modal-close-btn" id="closeCameraModalBtn">
@@ -976,6 +1078,16 @@
         </div>
 
         <div class="settings-section">
+          <h4><i class="fa-solid fa-arrow-down-to-bracket"></i> اختصار وتثبيت التطبيق</h4>
+          <p class="settings-desc">
+            يمكنك وضع أيقونة التطبيق على سطح المكتب بالكمبيوتر أو الشاشة الرئيسية بهاتفك للوصول السريع بدون كتابة الرابط في كل مرة.
+          </p>
+          <button type="button" id="settingsOpenShortcutBtn" class="btn btn-primary btn-sm">
+            <i class="fa-solid fa-laptop-mobile"></i> فتح دليل تثبيت واختصار التطبيق
+          </button>
+        </div>
+
+        <div class="settings-section">
           <h4><i class="fa-solid fa-bell"></i> التنبيهات والأصوات</h4>
           <label class="toggle-label">
             <input type="checkbox" id="soundToggle" checked>
@@ -986,12 +1098,274 @@
     </div>
   </div>
 
+  <!-- 7. Shortcut & Install Modal (Desktop & Mobile) -->
+  <div id="shortcutModal" class="modal-backdrop" style="display: none;">
+    <div class="modal-box shortcut-modal-box">
+      <div class="modal-header">
+        <div class="modal-title-box">
+          <div class="modal-icon icon-shortcut-glow"><i class="fa-solid fa-laptop-mobile"></i></div>
+          <div>
+            <h3>تثبيت التطبيق واختصار الشاشة</h3>
+            <p>إضافة أيقونة <strong>عائلة يحيي صبيح</strong> لسطح المكتب أو شاشة الهاتف</p>
+          </div>
+        </div>
+        <button class="modal-close-btn" id="closeShortcutModalBtn" aria-label="إغلاق">
+          <i class="fa-solid fa-xmark"></i>
+        </button>
+      </div>
+
+      <div class="modal-body shortcut-modal-body">
+        <!-- App Banner Showcase -->
+        <div class="shortcut-hero-card">
+          <div class="shortcut-app-icon">
+            <img src="/icon-192.png" alt="أيقونة عائلة يحيي صبيح" onerror="this.style.display='none'; this.nextElementSibling.style.display='flex';">
+            <div class="fallback-app-avatar" style="display: none;">ص</div>
+          </div>
+          <div class="shortcut-hero-info">
+            <h4 class="shortcut-app-name">تطبيق عائلة يحيي صبيح</h4>
+            <p class="shortcut-app-desc">تطبيق ويب تقدمي (PWA) فائق السرعة يدعم العمل المباشر وحفظ الرسائل والمناسبات والذكريات.</p>
+            <span class="shortcut-badge-pill"><i class="fa-solid fa-shield-halved"></i> تثبيت رسمي مباشر بأيقونة العائلة وبدون متجر</span>
+          </div>
+        </div>
+
+        <!-- In-App Browser Warning / External Browser Tip -->
+        <div class="inapp-browser-tip" id="inAppBrowserTip">
+          <div class="tip-icon"><i class="fa-solid fa-circle-info"></i></div>
+          <div class="tip-text">
+            <strong>نصيحة هامة لهواتف الجوال:</strong>
+            <span>إذا كنت تفتح الرابط من تطبيق واتساب أو فيسبوك، اضغط على النقاط الثلاث <i class="fa-solid fa-ellipsis-vertical"></i> في أعلى الشاشة واختر <strong>«فتح في المتصفح / Open in Chrome / Safari»</strong> ليتم تثبيت أيقونة التطبيق الرسمية بنجاح.</span>
+          </div>
+        </div>
+
+        <!-- Quick 1-Click Install Actions (If supported) -->
+        <div class="shortcut-quick-actions" id="shortcutQuickActions">
+          <button type="button" id="triggerNativeInstallBtn" class="btn btn-primary btn-install-direct">
+            <i class="fa-solid fa-circle-down"></i>
+            <span>تثبيت التطبيق الآن على الهاتف (PWA)</span>
+          </button>
+          <button type="button" id="downloadDesktopShortcutBtn" class="btn btn-outline btn-download-shortcut">
+            <i class="fa-solid fa-desktop"></i>
+            <span>تنزيل ملف اختصار سطح المكتب (كمبيوتر)</span>
+          </button>
+        </div>
+
+        <!-- Platform Tabs -->
+        <div class="shortcut-device-tabs" id="shortcutDeviceTabs">
+          <button type="button" class="device-tab active" data-tab="tab-pc">
+            <i class="fa-solid fa-desktop"></i>
+            <span>كمبيوتر / لابتوب</span>
+          </button>
+          <button type="button" class="device-tab" data-tab="tab-android">
+            <i class="fa-brands fa-android"></i>
+            <span>هواتف أندرويد</span>
+          </button>
+          <button type="button" class="device-tab" data-tab="tab-ios">
+            <i class="fa-brands fa-apple"></i>
+            <span>آيفون وآيباد</span>
+          </button>
+        </div>
+
+        <!-- Tab Content 1: PC / Laptop -->
+        <div class="device-tab-panel active" id="tab-pc">
+          <div class="shortcut-steps-list">
+            <div class="shortcut-step-item">
+              <div class="step-badge">1</div>
+              <div class="step-content">
+                <strong>من شريط العنوان بالمتصفح (Chrome / Edge / Brave):</strong>
+                <p>ابحث عن أيقونة التثبيت <span class="step-key-chip"><i class="fa-solid fa-arrow-down-to-square"></i> تثبيت</span> في نهاية شريط الرابط بالأعلى واضغط عليها.</p>
+              </div>
+            </div>
+
+            <div class="shortcut-step-item">
+              <div class="step-badge">2</div>
+              <div class="step-content">
+                <strong>أو من قائمة المتصفح (⋮):</strong>
+                <p>اضغط على النقاط الثلاث في زاوية المتصفح ➔ اختر <strong>"حفظ ومشاركة" (Save & Share)</strong> أو <strong>"المزيد من الأدوات"</strong> ➔ ثم <strong>"إنشاء اختصار..." (Create Shortcut)</strong>.</p>
+                <p class="step-subtip"><i class="fa-solid fa-lightbulb text-warning"></i> تأكد من وضع علامة صح <span class="step-key-chip">☑ فتح كنافذة (Open as window)</span> ليعمل كتطبيق مستقل على سطح المكتب.</p>
+              </div>
+            </div>
+
+            <div class="shortcut-step-item">
+              <div class="step-badge">3</div>
+              <div class="step-content">
+                <strong>الخيار الأسرع (تنزيل اختصار جاهز):</strong>
+                <p>اضغط على زر <strong>"تنزيل ملف اختصار سطح المكتب"</strong> بالأعلى، ثم اسحب الملف الناتج إلى سطح المكتب لتفتحه بنقرة واحدة دائماً.</p>
+              </div>
+            </div>
+          </div>
+        </div>
+
+        <!-- Tab Content 2: Android -->
+        <div class="device-tab-panel" id="tab-android">
+          <div class="shortcut-steps-list">
+            <div class="shortcut-step-item">
+              <div class="step-badge">1</div>
+              <div class="step-content">
+                <strong>افتح التطبيق في متصفح Chrome أو متصفحك المفضل:</strong>
+                <p>اضغط على أيقونة الخيارات أو النقاط الثلاث <span class="step-key-chip"><i class="fa-solid fa-ellipsis-vertical"></i></span> في زاوية الشاشة العليا.</p>
+              </div>
+            </div>
+
+            <div class="shortcut-step-item">
+              <div class="step-badge">2</div>
+              <div class="step-content">
+                <strong>اختر "إضافة إلى الشاشة الرئيسية":</strong>
+                <p>مرر في القائمة واضغط على <span class="step-key-chip"><i class="fa-solid fa-mobile-screen"></i> إضافة إلى الشاشة الرئيسية</span> أو <strong>"تثبيت التطبيق"</strong>.</p>
+              </div>
+            </div>
+
+            <div class="shortcut-step-item">
+              <div class="step-badge">3</div>
+              <div class="step-content">
+                <strong>تأكيد الإضافة:</strong>
+                <p>اضغط على "إضافة"، وسيظهر تطبيق <strong>عائلة يحيي صبيح</strong> فوراً على شاشة هاتفك الرئيسية مع إمكانية فتحه دون الحاجة للدخول للمتصفح.</p>
+              </div>
+            </div>
+          </div>
+        </div>
+
+        <!-- Tab Content 3: iOS (iPhone / iPad) -->
+        <div class="device-tab-panel" id="tab-ios">
+          <div class="shortcut-steps-list">
+            <div class="shortcut-step-item">
+              <div class="step-badge">1</div>
+              <div class="step-content">
+                <strong>افتح الرابط في متصفح سفاري (Safari):</strong>
+                <p>تأكد من فتح التطبيق عبر متصفح Apple Safari الافتراضي لضمان تفعيل ميزة الشاشة الرئيسية.</p>
+              </div>
+            </div>
+
+            <div class="shortcut-step-item">
+              <div class="step-badge">2</div>
+              <div class="step-content">
+                <strong>اضغط على زر المشاركة (Share):</strong>
+                <p>اضغط على أيقونة المشاركة <span class="step-key-chip"><i class="fa-solid fa-arrow-up-from-bracket"></i> المشاركة</span> في الشريط السفلي لشاشة الآيفون.</p>
+              </div>
+            </div>
+
+            <div class="shortcut-step-item">
+              <div class="step-badge">3</div>
+              <div class="step-content">
+                <strong>اختر "إضافة إلى الصفحة الرئيسية":</strong>
+                <p>مرر للأسفل في القائمة واضغط على <span class="step-key-chip"><i class="fa-regular fa-square-plus"></i> إضافة إلى الصفحة الرئيسية</span> (Add to Home Screen).</p>
+              </div>
+            </div>
+
+            <div class="shortcut-step-item">
+              <div class="step-badge">4</div>
+              <div class="step-content">
+                <strong>اضغط على "إضافة" (Add):</strong>
+                <p>في الزاوية العلوية اليسرى/اليمنى، اضغط "إضافة"، وستجد أيقونة التطبيق جاهزة على شاشة الآيفون كأي تطبيق من App Store!</p>
+              </div>
+            </div>
+          </div>
+        </div>
+
+        <!-- Share URL Footer -->
+        <div class="shortcut-share-box">
+          <div class="share-box-text">
+            <strong><i class="fa-solid fa-share-nodes text-accent"></i> شارك الرابط مع باقي أفراد العائلة:</strong>
+            <span>أرسل رابط التطبيق لأفراد عائلتك ليضيفوه على شاشات هواتفهم وأجهزتهم.</span>
+          </div>
+          <button type="button" id="copyAppShareLinkBtn" class="btn btn-outline btn-sm">
+            <i class="fa-solid fa-copy"></i>
+            <span>نسخ الرابط</span>
+          </button>
+        </div>
+      </div>
+
+      <div class="modal-footer">
+        <button type="button" class="btn btn-primary" id="closeShortcutModalFooterBtn">حسناً، فهمت</button>
+      </div>
+    </div>
+  </div>
+
+  <!-- 8. Date Picker & Memory Browser Modal -->
+  <div id="dateFilterModal" class="modal-backdrop" style="display: none;">
+    <div class="modal-box date-filter-modal-box">
+      <div class="modal-header">
+        <div class="modal-title-box">
+          <div class="modal-icon icon-calendar-glow"><i class="fa-solid fa-calendar-day"></i></div>
+          <div>
+            <h3>استرجاع الذكريات والرسائل حسب التاريخ</h3>
+            <p>اختر يوماً معيناً لعرض الرسائل والصور التي أرسلت فيه فقط</p>
+          </div>
+        </div>
+        <button class="modal-close-btn" id="closeDateFilterModalBtn" aria-label="إغلاق">
+          <i class="fa-solid fa-xmark"></i>
+        </button>
+      </div>
+
+      <div class="modal-body date-filter-modal-body">
+        <!-- Date Picker Form Row -->
+        <div class="date-picker-card">
+          <label for="dateFilterInput" class="date-picker-label">
+            <i class="fa-regular fa-calendar-check text-accent"></i>
+            <span>اختر تاريخاً بالتقويم:</span>
+          </label>
+          <div class="date-picker-input-row">
+            <input type="date" id="dateFilterInput" class="date-native-input">
+            <button type="button" id="applyDatePickerBtn" class="btn btn-primary btn-apply-date">
+              <i class="fa-solid fa-filter"></i>
+              <span>تصفية وعرض اليوم</span>
+            </button>
+          </div>
+        </div>
+
+        <!-- Quick Shortcut Pills -->
+        <div class="date-shortcuts-section">
+          <span class="shortcuts-title"><i class="fa-solid fa-bolt text-warning"></i> اختيارات سريعة:</span>
+          <div class="quick-date-pills">
+            <button type="button" class="date-pill-btn" data-date-type="all">
+              <i class="fa-solid fa-comments"></i>
+              <span>عرض كل المحادثة</span>
+            </button>
+            <button type="button" class="date-pill-btn" data-date-type="today">
+              <i class="fa-solid fa-sun"></i>
+              <span>رسائل اليوم</span>
+            </button>
+            <button type="button" class="date-pill-btn" data-date-type="yesterday">
+              <i class="fa-solid fa-moon"></i>
+              <span>رسائل أمس</span>
+            </button>
+            <button type="button" class="date-pill-btn" data-date-type="friday">
+              <i class="fa-solid fa-mosque"></i>
+              <span>آخر يوم جمعة</span>
+            </button>
+          </div>
+        </div>
+
+        <!-- Recorded Memory Days List -->
+        <div class="recorded-days-section">
+          <div class="recorded-days-header">
+            <span class="recorded-days-title">
+              <i class="fa-solid fa-clock-rotate-left text-accent"></i>
+              <span>أيام المحادثة المسجلة (الذكريات النشطة):</span>
+            </span>
+            <span class="recorded-days-sub">اضغط على أي يوم للانتقال لرسائله فوراً</span>
+          </div>
+          <div id="availableDatesList" class="available-dates-list">
+            <!-- Populated dynamically with dates and message counts -->
+          </div>
+        </div>
+      </div>
+
+      <div class="modal-footer">
+        <button type="button" id="resetDateFilterModalBtn" class="btn btn-ghost">
+          <i class="fa-solid fa-xmark"></i>
+          <span>إلغاء التصفية وعرض الكل</span>
+        </button>
+        <button type="button" id="closeDateFilterFooterBtn" class="btn btn-outline">إغلاق</button>
+      </div>
+    </div>
+  </div>
+
   <!-- In-App Floating Toast Container -->
   <div id="appToastContainer" class="toast-notification-container"></div>
 
   <!-- Audio Notification Sound (Generated / Web Audio) -->
   
   <!-- Main Script -->
-  <script src="./app.js"></script>
+  <script type="module" src="./app.js"></script>
 </body>
 </html>

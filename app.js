@@ -5,6 +5,19 @@
  * ============================================================================
  */
 
+import { initializeApp, getApps, getApp } from 'firebase/app';
+import {
+  getFirestore,
+  collection,
+  doc,
+  setDoc,
+  getDoc,
+  getDocFromServer,
+  onSnapshot,
+  deleteDoc,
+  updateDoc
+} from 'firebase/firestore';
+
 (function () {
   'use strict';
 
@@ -91,14 +104,24 @@
     soundEnabled: true,
     deferredInstallPrompt: null,
     isFirebaseReady: false,
+    firestore: null,
     dbRef: null,
     announcementDbRef: null,
     eventsDbRef: null,
     storageRef: null,
+    unsubscribeMessages: null,
+    unsubscribeEvents: null,
+    unsubscribeAnnouncements: null,
+    unsubscribeMemories: null,
+    unsubscribeRoster: null,
+    unsubscribeAvatars: null,
     broadcastChannel: null,
     cameraStream: null,
     cameraFacingMode: 'user',
-    capturedPhotoData: null
+    capturedPhotoData: null,
+    activeReplyTo: null, // { id, sender, text, mediaType } for WhatsApp quoting
+    selectedDateFilter: null, // 'YYYY-MM-DD' or null for memories browsing
+    activeReactionDockMsgId: null // tracks open WhatsApp reaction popover
   };
 
   // --------------------------------------------------------------------------
@@ -117,6 +140,8 @@
     networkStatusBadge: document.getElementById('networkStatusBadge'),
     networkStatusText: document.getElementById('networkStatusText'),
     searchToggleBtn: document.getElementById('searchToggleBtn'),
+    dateFilterBtn: document.getElementById('dateFilterBtn'),
+    dateFilterBadgeDot: document.getElementById('dateFilterBadgeDot'),
     mediaGalleryBtn: document.getElementById('mediaGalleryBtn'),
     settingsBtn: document.getElementById('settingsBtn'),
     pwaInstallBtn: document.getElementById('pwaInstallBtn'),
@@ -131,6 +156,15 @@
     pinnedText: document.getElementById('pinnedText'),
     editAnnouncementBtn: document.getElementById('editAnnouncementBtn'),
     togglePinnedBannerBtn: document.getElementById('togglePinnedBannerBtn'),
+
+    // Date Filter / Memory Browser Banner
+    dateFilterBanner: document.getElementById('dateFilterBanner'),
+    activeFilteredDateText: document.getElementById('activeFilteredDateText'),
+    activeFilteredDateCount: document.getElementById('activeFilteredDateCount'),
+    prevDayFilterBtn: document.getElementById('prevDayFilterBtn'),
+    openDateModalFromBannerBtn: document.getElementById('openDateModalFromBannerBtn'),
+    nextDayFilterBtn: document.getElementById('nextDayFilterBtn'),
+    clearDateFilterBtn: document.getElementById('clearDateFilterBtn'),
 
     // Search Bar
     searchBarContainer: document.getElementById('searchBarContainer'),
@@ -150,6 +184,12 @@
     unreadCountBadge: document.getElementById('unreadCountBadge'),
     quickGreetingPills: document.getElementById('quickGreetingPills'),
 
+    // Reply-To Preview Bar
+    replyPreviewBar: document.getElementById('replyPreviewBar'),
+    replyToName: document.getElementById('replyToName'),
+    replyToText: document.getElementById('replyToText'),
+    cancelReplyBtn: document.getElementById('cancelReplyBtn'),
+
     // Progress & Preview
     uploadProgressBarContainer: document.getElementById('uploadProgressBarContainer'),
     uploadProgressBar: document.getElementById('uploadProgressBar'),
@@ -159,6 +199,7 @@
     previewThumbnail: document.getElementById('previewThumbnail'),
     previewFilename: document.getElementById('previewFilename'),
     previewFilesize: document.getElementById('previewFilesize'),
+    quickSendAttachmentBtn: document.getElementById('quickSendAttachmentBtn'),
     cancelAttachmentBtn: document.getElementById('cancelAttachmentBtn'),
 
     // Emoji Bar
@@ -294,6 +335,14 @@
     cancelAddEventBtn: document.getElementById('cancelAddEventBtn'),
     eventsListContainer: document.getElementById('eventsListContainer'),
 
+    // Delete Event Confirm Modal
+    deleteEventConfirmModal: document.getElementById('deleteEventConfirmModal'),
+    closeDeleteEventConfirmModalBtn: document.getElementById('closeDeleteEventConfirmModalBtn'),
+    cancelDeleteEventBtn: document.getElementById('cancelDeleteEventBtn'),
+    confirmDeleteEventActionBtn: document.getElementById('confirmDeleteEventActionBtn'),
+    deleteEventTargetTitle: document.getElementById('deleteEventTargetTitle'),
+    deleteEventTargetDate: document.getElementById('deleteEventTargetDate'),
+
     // Family Poll Create Modal
     pollCreateModal: document.getElementById('pollCreateModal'),
     closePollModalBtn: document.getElementById('closePollModalBtn'),
@@ -310,13 +359,33 @@
     settingsChangeNameBtn: document.getElementById('settingsChangeNameBtn'),
     settingsFamilyCount: document.getElementById('settingsFamilyCount'),
     settingsManageBulkBtn: document.getElementById('settingsManageBulkBtn'),
+    settingsOpenShortcutBtn: document.getElementById('settingsOpenShortcutBtn'),
     fbApiKey: document.getElementById('fbApiKey'),
     fbDbUrl: document.getElementById('fbDbUrl'),
     fbStorageBucket: document.getElementById('fbStorageBucket'),
     fbProjectId: document.getElementById('fbProjectId'),
     saveFbConfigBtn: document.getElementById('saveFbConfigBtn'),
     resetFbConfigBtn: document.getElementById('resetFbConfigBtn'),
-    soundToggle: document.getElementById('soundToggle')
+    soundToggle: document.getElementById('soundToggle'),
+
+    // Shortcut & Install Modal
+    openShortcutModalBtn: document.getElementById('openShortcutModalBtn'),
+    shortcutModal: document.getElementById('shortcutModal'),
+    closeShortcutModalBtn: document.getElementById('closeShortcutModalBtn'),
+    closeShortcutModalFooterBtn: document.getElementById('closeShortcutModalFooterBtn'),
+    triggerNativeInstallBtn: document.getElementById('triggerNativeInstallBtn'),
+    downloadDesktopShortcutBtn: document.getElementById('downloadDesktopShortcutBtn'),
+    shortcutDeviceTabs: document.getElementById('shortcutDeviceTabs'),
+    copyAppShareLinkBtn: document.getElementById('copyAppShareLinkBtn'),
+
+    // Date Filter & Memory Browser Modal
+    dateFilterModal: document.getElementById('dateFilterModal'),
+    closeDateFilterModalBtn: document.getElementById('closeDateFilterModalBtn'),
+    dateFilterInput: document.getElementById('dateFilterInput'),
+    applyDatePickerBtn: document.getElementById('applyDatePickerBtn'),
+    availableDatesList: document.getElementById('availableDatesList'),
+    resetDateFilterModalBtn: document.getElementById('resetDateFilterModalBtn'),
+    closeDateFilterFooterBtn: document.getElementById('closeDateFilterFooterBtn')
   };
 
   // --------------------------------------------------------------------------
@@ -365,7 +434,13 @@
       state.currentUserAvatar = savedAvatar || state.familyAvatars[state.currentUser] || '';
       updateHeaderUserUI();
     } else {
-      showUserSelectionModal(false);
+      // Default to first family member immediately so all controls, greetings and inputs work seamlessly
+      state.currentUser = (state.familyMembers && state.familyMembers[0]) ? state.familyMembers[0] : 'يحيي صبيح (الوالد)';
+      state.currentAvatarColor = getAvatarColor(state.currentUser);
+      state.currentUserAvatar = state.familyAvatars[state.currentUser] || '';
+      updateHeaderUserUI();
+      // Prompt user to pick or confirm their specific identity
+      showUserSelectionModal(true);
     }
   }
 
@@ -417,6 +492,36 @@
         localStorage.removeItem(STORAGE_KEYS.USER_AVATAR_IMAGE);
       }
       updateHeaderUserUI();
+    }
+
+    // Broadcast avatar update to other open tabs
+    if (state.broadcastChannel) {
+      try {
+        state.broadcastChannel.postMessage({
+          type: 'AVATARS_UPDATED',
+          avatars: state.familyAvatars
+        });
+      } catch (e) {}
+    }
+
+    // Sync to Firestore for real-time cloud persistence across all family devices
+    if (state.isFirebaseReady && state.firestore) {
+      try {
+        setDoc(doc(state.firestore, 'yahia_roster', 'avatars'), {
+          avatars: state.familyAvatars,
+          updatedAt: Date.now()
+        }, { merge: true }).catch(console.warn);
+
+        // Also save individual member doc
+        const memberDocId = encodeURIComponent(name).replace(/%/g, '_');
+        setDoc(doc(state.firestore, 'yahia_members', memberDocId), {
+          name: name,
+          avatar: avatarUrl || '',
+          lastActive: Date.now()
+        }, { merge: true }).catch(console.warn);
+      } catch (err) {
+        console.warn('Firestore avatar sync notice:', err);
+      }
     }
 
     renderMemberPresetGrid();
@@ -821,6 +926,28 @@
     state.familyMembers = names;
     localStorage.setItem(STORAGE_KEYS.FAMILY_MEMBERS, JSON.stringify(names));
 
+    // Broadcast roster change to other open tabs
+    if (state.broadcastChannel) {
+      try {
+        state.broadcastChannel.postMessage({
+          type: 'ROSTER_UPDATED',
+          members: state.familyMembers
+        });
+      } catch (e) {}
+    }
+
+    // Sync to Firestore
+    if (state.isFirebaseReady && state.firestore) {
+      try {
+        setDoc(doc(state.firestore, 'yahia_roster', 'members'), {
+          list: state.familyMembers,
+          updatedAt: Date.now()
+        }, { merge: true }).catch(console.warn);
+      } catch (err) {
+        console.warn('Firestore roster sync error:', err);
+      }
+    }
+
     updateFamilyCountUI();
     renderMemberPresetGrid();
     hideBulkMembersModal();
@@ -915,6 +1042,28 @@
       state.familyMembers.push(cleanName);
       localStorage.setItem(STORAGE_KEYS.FAMILY_MEMBERS, JSON.stringify(state.familyMembers));
       updateFamilyCountUI();
+
+      // Broadcast roster change to other open tabs
+      if (state.broadcastChannel) {
+        try {
+          state.broadcastChannel.postMessage({
+            type: 'ROSTER_UPDATED',
+            members: state.familyMembers
+          });
+        } catch (e) {}
+      }
+
+      // Sync to Firestore
+      if (state.isFirebaseReady && state.firestore) {
+        try {
+          setDoc(doc(state.firestore, 'yahia_roster', 'members'), {
+            list: state.familyMembers,
+            updatedAt: Date.now()
+          }, { merge: true }).catch(console.warn);
+        } catch (err) {
+          console.warn('Firestore roster sync error:', err);
+        }
+      }
     }
 
     renderMemberPresetGrid();
@@ -947,36 +1096,34 @@
   // --------------------------------------------------------------------------
   // 4. Firebase Initialization & Real-Time Sync Logic
   // --------------------------------------------------------------------------
+  const PROVISIONED_FIREBASE_CONFIG = {
+    projectId: "phonic-keel-907pf",
+    appId: "1:54804586561:web:c8e67ea130fa82a373a6c0",
+    apiKey: "AIzaSyDNoDjkuRRPCnq9jpleqMu839qicpT3Ruw",
+    authDomain: "phonic-keel-907pf.firebaseapp.com",
+    firestoreDatabaseId: "ai-studio-bfd619db-ed15-49a7-9bd0-2231dfcba205",
+    storageBucket: "phonic-keel-907pf.firebasestorage.app",
+    messagingSenderId: "54804586561"
+  };
+
   function initFirebase() {
     // 1. Always load cached messages first so the user sees their chat instantly
     loadCachedMessages();
     renderMessages();
 
-    const defaultFirebaseConfig = {
-      apiKey: "AIzaSyDummyKeyForYahiaFamilyApplet2026",
-      authDomain: "yahia-sobeih-family.firebaseapp.com",
-      databaseURL: "https://yahia-sobeih-family-default-rtdb.firebaseio.com",
-      projectId: "yahia-sobeih-family",
-      storageBucket: "yahia-sobeih-family.appspot.com",
-      messagingSenderId: "183636514057",
-      appId: "1:183636514057:web:9a8b7c6d5e4f3a2b1c"
-    };
-
     let userConfig = null;
-    let hasCustomConfig = false;
     try {
       const saved = localStorage.getItem(STORAGE_KEYS.FB_CONFIG);
       if (saved) {
         userConfig = JSON.parse(saved);
-        if (userConfig && userConfig.apiKey && !userConfig.apiKey.includes('DummyKey')) {
-          hasCustomConfig = true;
-        }
       }
     } catch (e) {
       console.warn('Failed parsing saved firebase config:', e);
     }
 
-    const config = userConfig || defaultFirebaseConfig;
+    const config = (userConfig && userConfig.apiKey && !userConfig.apiKey.includes('DummyKey'))
+      ? userConfig
+      : PROVISIONED_FIREBASE_CONFIG;
 
     // Populate Settings modal inputs
     if (DOM.fbApiKey) DOM.fbApiKey.value = config.apiKey || '';
@@ -1004,6 +1151,27 @@
           } else if (event.data.type === 'ANNOUNCEMENT_UPDATED') {
             state.pinnedAnnouncement = event.data.announcement || null;
             renderPinnedBanner();
+          } else if (event.data.type === 'MEMORIES_UPDATED') {
+            state.familyMemories = Array.isArray(event.data.memories) ? event.data.memories : [];
+            localStorage.setItem(STORAGE_KEYS.FAMILY_MEMORIES, JSON.stringify(state.familyMemories));
+            updateMediaCounts();
+            if (DOM.mediaGalleryModal && DOM.mediaGalleryModal.style.display !== 'none') {
+              renderGalleryTab('albums');
+            }
+          } else if (event.data.type === 'AVATARS_UPDATED') {
+            state.familyAvatars = event.data.avatars || {};
+            localStorage.setItem(STORAGE_KEYS.FAMILY_AVATARS, JSON.stringify(state.familyAvatars));
+            if (state.currentUser && state.familyAvatars[state.currentUser]) {
+              state.currentUserAvatar = state.familyAvatars[state.currentUser];
+              updateHeaderUserUI();
+            }
+            renderMemberPresetGrid();
+            renderMessages();
+          } else if (event.data.type === 'ROSTER_UPDATED') {
+            state.familyMembers = Array.isArray(event.data.members) ? event.data.members : [];
+            localStorage.setItem(STORAGE_KEYS.FAMILY_MEMBERS, JSON.stringify(state.familyMembers));
+            updateFamilyCountUI();
+            renderMemberPresetGrid();
           }
         };
       } catch (e) {
@@ -1011,43 +1179,149 @@
       }
     }
 
-    // Try initializing Firebase only if custom credentials exist, or test gracefully
-    if (hasCustomConfig && window.firebase && firebase.initializeApp) {
-      try {
-        if (!firebase.apps.length) {
-          firebase.initializeApp(config);
-        }
-        state.dbRef = firebase.database().ref('yahia_family_messages');
-        state.storageRef = firebase.storage().ref();
+    // Initialize Firebase Firestore for live cloud synchronization across all devices
+    try {
+      let appInstance;
+      if (!getApps().length) {
+        appInstance = initializeApp(config);
+      } else {
+        appInstance = getApp();
+      }
+
+      const dbId = config.firestoreDatabaseId || "ai-studio-bfd619db-ed15-49a7-9bd0-2231dfcba205";
+      state.firestore = getFirestore(appInstance, dbId);
+
+      if (state.firestore) {
         state.isFirebaseReady = true;
-
         DOM.networkStatusBadge.classList.remove('offline');
-        DOM.networkStatusText.textContent = 'متصل بـ Firebase';
+        DOM.networkStatusText.textContent = 'متصل سحابياً (مباشر)';
 
-        // Listen for Realtime Database changes
-        state.dbRef.limitToLast(150).on('value', (snapshot) => {
-          const data = snapshot.val();
-          if (data) {
-            const list = Object.keys(data).map(key => ({
-              id: key,
-              ...data[key]
-            }));
-            state.messages = list.sort((a, b) => a.timestamp - b.timestamp);
+        // Test connection with getDocFromServer
+        getDocFromServer(doc(state.firestore, 'test', 'connection')).catch(() => {});
+
+        // 1. Subscribe to Live Firestore Messages
+        if (state.unsubscribeMessages) state.unsubscribeMessages();
+        state.unsubscribeMessages = onSnapshot(collection(state.firestore, 'yahia_messages'), (snapshot) => {
+          if (snapshot && !snapshot.empty) {
+            const cloudMessages = [];
+            snapshot.forEach((docSnap) => {
+              cloudMessages.push({ id: docSnap.id, ...docSnap.data() });
+            });
+            cloudMessages.sort((a, b) => (a.timestamp || 0) - (b.timestamp || 0));
+            state.messages = cloudMessages;
             saveMessagesCache();
             renderMessages();
+          } else if (snapshot && snapshot.empty && state.messages.length > 0) {
+            // If cloud is empty, seed cached messages to cloud once
+            state.messages.forEach(msg => {
+              if (msg.id) {
+                setDoc(doc(state.firestore, 'yahia_messages', msg.id), msg).catch(console.warn);
+              }
+            });
           }
-        }, (error) => {
-          console.warn('Firebase RTDB note: using synchronized storage mode:', error.message);
-          fallbackToLocalMode();
+        }, (err) => {
+          console.warn('Firestore messages listener notice:', err.message);
         });
 
-      } catch (err) {
-        console.warn('Firebase init fallback:', err);
-        fallbackToLocalMode();
+        // 2. Subscribe to Live Announcements
+        if (state.unsubscribeAnnouncements) state.unsubscribeAnnouncements();
+        state.unsubscribeAnnouncements = onSnapshot(doc(state.firestore, 'yahia_announcements', 'current_pinned'), (docSnap) => {
+          if (docSnap.exists()) {
+            state.pinnedAnnouncement = docSnap.data();
+            localStorage.setItem(STORAGE_KEYS.PINNED_ANNOUNCEMENT, JSON.stringify(docSnap.data()));
+          } else {
+            state.pinnedAnnouncement = null;
+            localStorage.removeItem(STORAGE_KEYS.PINNED_ANNOUNCEMENT);
+          }
+          renderPinnedBanner();
+        }, (err) => {
+          console.warn('Firestore announcements listener notice:', err.message);
+        });
+
+        // 3. Subscribe to Live Events
+        if (state.unsubscribeEvents) state.unsubscribeEvents();
+        state.unsubscribeEvents = onSnapshot(collection(state.firestore, 'yahia_events'), (snapshot) => {
+          if (snapshot && !snapshot.empty) {
+            const eventsList = [];
+            snapshot.forEach(d => eventsList.push({ id: d.id, ...d.data() }));
+            eventsList.sort((a, b) => new Date(a.date) - new Date(b.date));
+            state.familyEvents = eventsList;
+            localStorage.setItem(STORAGE_KEYS.FAMILY_EVENTS, JSON.stringify(eventsList));
+            updateEventsBadgeUI();
+            if (DOM.eventsCalendarModal && DOM.eventsCalendarModal.style.display !== 'none') {
+              renderFamilyEventsList();
+            }
+          }
+        }, (err) => {
+          console.warn('Firestore events listener notice:', err.message);
+        });
+
+        // 4. Subscribe to Live Memories Album
+        if (state.unsubscribeMemories) state.unsubscribeMemories();
+        state.unsubscribeMemories = onSnapshot(collection(state.firestore, 'yahia_memories'), (snapshot) => {
+          if (snapshot && !snapshot.empty) {
+            const memoriesList = [];
+            snapshot.forEach(d => memoriesList.push({ id: d.id, ...d.data() }));
+            memoriesList.sort((a, b) => (b.timestamp || 0) - (a.timestamp || 0));
+            state.familyMemories = memoriesList;
+            localStorage.setItem(STORAGE_KEYS.FAMILY_MEMORIES, JSON.stringify(memoriesList));
+            updateMediaCounts();
+            if (DOM.mediaGalleryModal && DOM.mediaGalleryModal.style.display !== 'none') {
+              renderGalleryTab('albums');
+            }
+          }
+        }, (err) => {
+          console.warn('Firestore memories listener notice:', err.message);
+        });
+
+        // 5. Subscribe to Live Family Members Roster
+        if (state.unsubscribeRoster) state.unsubscribeRoster();
+        state.unsubscribeRoster = onSnapshot(doc(state.firestore, 'yahia_roster', 'members'), (docSnap) => {
+          if (docSnap.exists() && Array.isArray(docSnap.data().list) && docSnap.data().list.length > 0) {
+            state.familyMembers = docSnap.data().list;
+            localStorage.setItem(STORAGE_KEYS.FAMILY_MEMBERS, JSON.stringify(state.familyMembers));
+            updateFamilyCountUI();
+            renderMemberPresetGrid();
+          } else if (!docSnap.exists() && state.familyMembers.length > 0) {
+            setDoc(doc(state.firestore, 'yahia_roster', 'members'), {
+              list: state.familyMembers,
+              updatedAt: Date.now()
+            }).catch(console.warn);
+          }
+        }, (err) => {
+          console.warn('Firestore roster listener notice:', err.message);
+        });
+
+        // 6. Subscribe to Live Member Avatars & Personal Photos
+        if (state.unsubscribeAvatars) state.unsubscribeAvatars();
+        state.unsubscribeAvatars = onSnapshot(doc(state.firestore, 'yahia_roster', 'avatars'), (docSnap) => {
+          if (docSnap.exists() && docSnap.data().avatars) {
+            state.familyAvatars = { ...state.familyAvatars, ...docSnap.data().avatars };
+            localStorage.setItem(STORAGE_KEYS.FAMILY_AVATARS, JSON.stringify(state.familyAvatars));
+            if (state.currentUser && state.familyAvatars[state.currentUser]) {
+              state.currentUserAvatar = state.familyAvatars[state.currentUser];
+              localStorage.setItem(STORAGE_KEYS.USER_AVATAR_IMAGE, state.currentUserAvatar);
+              updateHeaderUserUI();
+            }
+            renderMemberPresetGrid();
+            renderMessages();
+          } else if (!docSnap.exists() && Object.keys(state.familyAvatars).length > 0) {
+            setDoc(doc(state.firestore, 'yahia_roster', 'avatars'), {
+              avatars: state.familyAvatars,
+              updatedAt: Date.now()
+            }).catch(console.warn);
+          }
+        }, (err) => {
+          console.warn('Firestore avatars listener notice:', err.message);
+        });
+
+        return;
       }
-    } else {
-      fallbackToLocalMode();
+    } catch (err) {
+      console.warn('Firebase Firestore setup notice:', err);
     }
+
+    fallbackToLocalMode();
   }
 
   function fallbackToLocalMode() {
@@ -1098,7 +1372,7 @@
       state.messages.push(msg);
       state.messages.sort((a, b) => a.timestamp - b.timestamp);
       saveMessagesCache();
-      renderMessages();
+      renderMessages(msg.id);
       playNotificationSound();
     }
   }
@@ -1110,8 +1384,96 @@
   }
 
   // --------------------------------------------------------------------------
-  // 5. Message Dispatching & Instant Synchronous Delivery
+  // 5. Message Dispatching & Instant Cloud Delivery
   // --------------------------------------------------------------------------
+  function compressChatImage(fileOrDataUrl, maxDim = 1200, quality = 0.78) {
+    return new Promise((resolve, reject) => {
+      let objectUrl = null;
+      const img = new Image();
+
+      img.onload = () => {
+        if (objectUrl) {
+          try { URL.revokeObjectURL(objectUrl); } catch (e) {}
+        }
+        let width = img.naturalWidth || img.width || 800;
+        let height = img.naturalHeight || img.height || 600;
+
+        if (width > maxDim || height > maxDim) {
+          if (width > height) {
+            height = Math.round((height * maxDim) / width);
+            width = maxDim;
+          } else {
+            width = Math.round((width * maxDim) / height);
+            height = maxDim;
+          }
+        }
+
+        const canvas = document.createElement('canvas');
+        canvas.width = width;
+        canvas.height = height;
+        const ctx = canvas.getContext('2d');
+        if (ctx) {
+          ctx.imageSmoothingEnabled = true;
+          ctx.imageSmoothingQuality = 'high';
+          ctx.drawImage(img, 0, 0, width, height);
+        }
+
+        // Convert to optimized JPEG Data URL (typically 80KB-160KB, well under Firestore's 1MB limit)
+        const compressedDataUrl = canvas.toDataURL('image/jpeg', quality);
+        resolve(compressedDataUrl);
+      };
+
+      img.onerror = (err) => {
+        if (objectUrl) {
+          try { URL.revokeObjectURL(objectUrl); } catch (e) {}
+        }
+        // Fallback: try FileReader if objectURL failed
+        if (fileOrDataUrl instanceof Blob || fileOrDataUrl instanceof File) {
+          const reader = new FileReader();
+          reader.onload = (e) => {
+            const fallbackImg = new Image();
+            fallbackImg.onload = () => {
+              const canvas = document.createElement('canvas');
+              let w = fallbackImg.naturalWidth || fallbackImg.width || 800;
+              let h = fallbackImg.naturalHeight || fallbackImg.height || 600;
+              if (w > maxDim || h > maxDim) {
+                if (w > h) { h = Math.round((h * maxDim) / w); w = maxDim; }
+                else { w = Math.round((w * maxDim) / h); h = maxDim; }
+              }
+              canvas.width = w;
+              canvas.height = h;
+              const ctx = canvas.getContext('2d');
+              ctx.drawImage(fallbackImg, 0, 0, w, h);
+              resolve(canvas.toDataURL('image/jpeg', quality));
+            };
+            fallbackImg.onerror = () => reject(err);
+            fallbackImg.src = e.target.result;
+          };
+          reader.onerror = () => reject(err);
+          reader.readAsDataURL(fileOrDataUrl);
+        } else {
+          reject(err);
+        }
+      };
+
+      if (typeof fileOrDataUrl === 'string') {
+        img.src = fileOrDataUrl;
+      } else if (fileOrDataUrl instanceof Blob || fileOrDataUrl instanceof File) {
+        try {
+          objectUrl = URL.createObjectURL(fileOrDataUrl);
+          img.src = objectUrl;
+        } catch (e) {
+          const reader = new FileReader();
+          reader.onload = (ev) => { img.src = ev.target.result; };
+          reader.onerror = reject;
+          reader.readAsDataURL(fileOrDataUrl);
+        }
+      } else {
+        reject(new Error('Invalid image input format'));
+      }
+    });
+  }
+
   async function sendMessage() {
     const text = (DOM.messageInput.value || '').trim();
     const attachment = state.pendingAttachment;
@@ -1132,13 +1494,24 @@
       senderAvatar: state.currentUserAvatar || getMemberAvatar(state.currentUser) || '',
       text: text,
       timestamp: Date.now(),
-      reactions: {}
+      reactions: {},
+      synced: false
     };
 
     // Extract YouTube video ID if present
     const youtubeId = extractYouTubeId(text);
     if (youtubeId) {
       messagePayload.youtubeId = youtubeId;
+    }
+
+    // Attach Quoted Reply Data (WhatsApp style)
+    if (state.activeReplyTo) {
+      messagePayload.replyTo = {
+        id: state.activeReplyTo.id,
+        sender: state.activeReplyTo.sender,
+        text: state.activeReplyTo.text || '',
+        mediaType: state.activeReplyTo.mediaType || ''
+      };
     }
 
     // Handle Media Attachment
@@ -1149,7 +1522,7 @@
       messagePayload.mediaSize = attachment.size;
     }
 
-    // 1. Optimistic Local Update - zero lag
+    // 1. Optimistic Local Update - instant UI response
     state.messages.push(messagePayload);
     saveMessagesCache();
 
@@ -1157,7 +1530,8 @@
     DOM.messageInput.value = '';
     DOM.messageInput.style.height = 'auto';
     clearPendingAttachment();
-    renderMessages();
+    cancelReplyTo();
+    renderMessages(msgId);
     scrollToBottom(true);
     playNotificationSound();
 
@@ -1180,11 +1554,25 @@
       }));
     } catch (e) {}
 
-    // 5. Asynchronously sync to Firebase in background without blocking UI
-    if (state.isFirebaseReady && state.dbRef) {
+    // 5. Asynchronously sync to Firestore with delivery confirmation
+    if (state.isFirebaseReady && state.firestore) {
+      setDoc(doc(state.firestore, 'yahia_messages', msgId), messagePayload)
+        .then(() => {
+          const target = state.messages.find(m => m.id === msgId);
+          if (target) {
+            target.synced = true;
+            saveMessagesCache();
+            renderMessages();
+          }
+        })
+        .catch(err => {
+          console.error('[Firestore] Message sync error:', err);
+          showToast(`⚠️ تعذر مزامنة المنشور: ${err.message || 'خطأ في الاتصال بالخادم'}`, 'error', 5000);
+        });
+    } else if (state.isFirebaseReady && state.dbRef) {
       try {
         const newRef = state.dbRef.push();
-        newRef.set({ ...messagePayload, id: newRef.key }).catch(err => {
+        newRef.set({ ...messagePayload, id: newRef.key, synced: true }).catch(err => {
           console.warn('Firebase async push note:', err.message);
         });
       } catch (err) {
@@ -1196,26 +1584,74 @@
   // --------------------------------------------------------------------------
   // 6. Media Attachments & Voice Note Recorder
   // --------------------------------------------------------------------------
-  function handleFileSelect(file) {
+  async function handleFileSelect(file) {
     if (!file) return;
 
+    const fileName = (file.name || '').toLowerCase();
     let type = 'file';
-    if (file.type.startsWith('image/')) type = 'image';
-    else if (file.type.startsWith('video/')) type = 'video';
-    else if (file.type.startsWith('audio/')) type = 'audio';
 
-    const reader = new FileReader();
-    reader.onload = (e) => {
-      state.pendingAttachment = {
-        file: file,
-        type: type,
-        dataUrl: e.target.result,
-        name: file.name,
-        size: file.size
-      };
+    // Comprehensive image check including mobile camera captures with empty or generic MIME types
+    const isImage = (file.type && file.type.startsWith('image/')) ||
+      /\.(jpe?g|png|webp|gif|bmp|heic|heif|svg)$/i.test(fileName) ||
+      (!file.type && file.size > 0 && !/\.(mp4|webm|mov|mp3|wav|ogg|pdf|docx?|zip)$/i.test(fileName)) ||
+      file.type === 'application/octet-stream';
+
+    if (isImage && !file.type.startsWith('video/') && !file.type.startsWith('audio/')) {
+      type = 'image';
+    } else if (file.type.startsWith('video/') || /\.(mp4|webm|mov|m4v|3gp)$/i.test(fileName)) {
+      type = 'video';
+    } else if (file.type.startsWith('audio/') || /\.(mp3|wav|ogg|m4a|aac|webm)$/i.test(fileName)) {
+      type = 'audio';
+    }
+
+    showUploadProgress(true, 'جاري معالجة وضغط الصورة...');
+    updateUploadProgress(35);
+
+    try {
+      if (type === 'image') {
+        updateUploadProgress(65);
+        // Automatically compress mobile phone photos (which can be 5MB - 12MB) down to ~120KB
+        const compressedDataUrl = await compressChatImage(file, 1200, 0.78);
+        const approxSize = Math.round((compressedDataUrl.length * 3) / 4);
+        state.pendingAttachment = {
+          file: file,
+          type: 'image',
+          dataUrl: compressedDataUrl,
+          name: file.name || 'صورة_كاميرا.jpg',
+          size: approxSize
+        };
+        showToast('📸 تم التقاط الصورة! اضغط "إرسال الآن" أو أضف تعليقاً معها', 'info', 4000);
+      } else {
+        // Video / Audio / Other files
+        const reader = new FileReader();
+        await new Promise((resolve, reject) => {
+          reader.onload = (e) => {
+            const rawDataUrl = e.target.result;
+            if (rawDataUrl.length > 950000) {
+              showToast('تنبيه: حجم الملف كبير. يفضل مشاركة ملفات وسائط أصغر من 700 كيلوبايت أو روابط يوتيوب لضمان السرعة والمزامنة الفورية.', 'warning', 6000);
+            }
+            state.pendingAttachment = {
+              file: file,
+              type: type,
+              dataUrl: rawDataUrl,
+              name: file.name,
+              size: file.size
+            };
+            resolve();
+          };
+          reader.onerror = reject;
+          reader.readAsDataURL(file);
+        });
+      }
+
+      updateUploadProgress(100);
+      setTimeout(() => showUploadProgress(false), 250);
       showAttachmentPreview();
-    };
-    reader.readAsDataURL(file);
+    } catch (err) {
+      console.warn('File processing notice:', err);
+      showUploadProgress(false);
+      showToast('حدث خطأ أثناء معالجة الملف، يرجى المحاولة مرة أخرى', 'error');
+    }
   }
 
   function showAttachmentPreview() {
@@ -1223,8 +1659,8 @@
     if (!att) return;
 
     DOM.attachmentPreviewBar.style.display = 'block';
-    DOM.previewFilename.textContent = att.name;
-    DOM.previewFilesize.textContent = formatBytes(att.size);
+    DOM.previewFilename.textContent = att.name || 'صورة الكاميرا';
+    DOM.previewFilesize.textContent = att.type === 'image' ? `جاهزة للمشاركة 📸 (${formatBytes(att.size)})` : formatBytes(att.size);
 
     if (att.type === 'image') {
       DOM.previewThumbnail.innerHTML = `<img src="${att.dataUrl}" alt="preview">`;
@@ -1408,7 +1844,13 @@
       return;
     }
 
-    if (state.isFirebaseReady && state.dbRef) {
+    if (state.isFirebaseReady && state.firestore) {
+      try {
+        deleteDoc(doc(state.firestore, 'yahia_messages', msgId)).catch(e => console.warn('Firestore delete notice:', e));
+      } catch (e) {
+        console.warn('Delete fallback:', e);
+      }
+    } else if (state.isFirebaseReady && state.dbRef) {
       try {
         await state.dbRef.child(msgId).remove();
       } catch (e) {
@@ -1429,39 +1871,335 @@
     state.selectedDeleteId = null;
   }
 
+  // --------------------------------------------------------------------------
+  // Quoted Reply System (WhatsApp Style)
+  // --------------------------------------------------------------------------
+  function setReplyTo(msgId) {
+    const msg = state.messages.find(m => m.id === msgId);
+    if (!msg) return;
+
+    let previewText = msg.text || '';
+    if (!previewText) {
+      if (msg.mediaType === 'image') previewText = '📷 صورة';
+      else if (msg.mediaType === 'video') previewText = '🎥 مقطع فيديو';
+      else if (msg.mediaType === 'audio') previewText = '🎤 تسجيل صوتي';
+      else if (msg.type === 'poll' || msg.pollData) previewText = '📊 استطلاع رأي عائلي';
+      else previewText = 'مرفق';
+    }
+
+    state.activeReplyTo = {
+      id: msg.id,
+      sender: msg.sender,
+      text: previewText,
+      mediaType: msg.mediaType || ''
+    };
+
+    if (DOM.replyPreviewBar && DOM.replyToName && DOM.replyToText) {
+      DOM.replyToName.textContent = msg.sender;
+      DOM.replyToText.textContent = previewText;
+      DOM.replyPreviewBar.style.display = 'flex';
+    }
+
+    if (DOM.messageInput) {
+      DOM.messageInput.focus();
+    }
+  }
+
+  function cancelReplyTo() {
+    state.activeReplyTo = null;
+    if (DOM.replyPreviewBar) {
+      DOM.replyPreviewBar.style.display = 'none';
+    }
+  }
+
+  function scrollToMessage(msgId) {
+    if (!msgId) return;
+
+    const targetMsg = state.messages.find(m => m.id === msgId);
+    if (targetMsg && state.selectedDateFilter) {
+      const msgDateStr = toISODateString(new Date(targetMsg.timestamp));
+      if (msgDateStr !== state.selectedDateFilter) {
+        filterByDate(msgDateStr);
+        showToast(`تم الانتقال لتاريخ الرسالة الأصلية (${formatDateHeader(new Date(targetMsg.timestamp))}) 📅`, 'info', 2500);
+      }
+    }
+
+    setTimeout(() => {
+      const rowEl = document.querySelector(`.message-row[data-id="${msgId}"]`);
+      if (rowEl) {
+        rowEl.scrollIntoView({ behavior: 'smooth', block: 'center' });
+        rowEl.classList.remove('highlight-quoted-message');
+        void rowEl.offsetWidth;
+        rowEl.classList.add('highlight-quoted-message');
+        setTimeout(() => {
+          rowEl.classList.remove('highlight-quoted-message');
+        }, 2200);
+      } else {
+        showToast('الرسالة المقتبسة غير موجودة أو تم حذفها', 'warning');
+      }
+    }, 120);
+  }
+
+  // --------------------------------------------------------------------------
+  // WhatsApp Emoji Reactions & Floating Dock
+  // --------------------------------------------------------------------------
   function toggleReaction(msgId, emoji) {
     const msg = state.messages.find(m => m.id === msgId);
     if (!msg) return;
 
     if (!msg.reactions) msg.reactions = {};
-    msg.reactions[emoji] = (msg.reactions[emoji] || 0) + 1;
 
-    if (state.isFirebaseReady && state.dbRef) {
+    const currentUser = (state.currentUser || 'أنا').trim();
+    const rawVal = msg.reactions[emoji];
+
+    if (Array.isArray(rawVal)) {
+      const idx = rawVal.indexOf(currentUser);
+      if (idx >= 0) {
+        rawVal.splice(idx, 1);
+        if (rawVal.length === 0) {
+          delete msg.reactions[emoji];
+        }
+      } else {
+        rawVal.push(currentUser);
+      }
+    } else if (typeof rawVal === 'number') {
+      if (rawVal > 0) {
+        msg.reactions[emoji] = [currentUser];
+      } else {
+        msg.reactions[emoji] = [currentUser];
+      }
+    } else {
+      msg.reactions[emoji] = [currentUser];
+    }
+
+    // Real-time synchronization with Firestore / Firebase
+    if (state.isFirebaseReady && state.firestore) {
+      updateDoc(doc(state.firestore, 'yahia_messages', msgId), {
+        reactions: msg.reactions
+      }).catch(console.warn);
+    } else if (state.isFirebaseReady && state.dbRef) {
       state.dbRef.child(msgId).child('reactions').set(msg.reactions);
     }
+
+    // Cross-tab broadcast
+    if (state.broadcastChannel) {
+      try {
+        state.broadcastChannel.postMessage({
+          type: 'TOGGLE_REACTION',
+          messageId: msgId,
+          reactions: msg.reactions
+        });
+      } catch (e) {}
+    }
+
     saveMessagesCache();
     renderMessages();
+  }
+
+  function toggleReactionDock(msgId, containerEl) {
+    const existingDock = document.getElementById('activeReactionDock');
+    if (existingDock) {
+      const prevMsgId = existingDock.getAttribute('data-msg-id');
+      existingDock.remove();
+      if (prevMsgId === msgId) {
+        return;
+      }
+    }
+
+    const dock = document.createElement('div');
+    dock.id = 'activeReactionDock';
+    dock.className = 'reaction-dock-popover';
+    dock.setAttribute('data-msg-id', msgId);
+
+    const whatsappEmojis = ['❤️', '👍', '😂', '😮', '😢', '🤲', '🌹', '👏', '🎉', '🎂'];
+    whatsappEmojis.forEach(emoji => {
+      const btn = document.createElement('button');
+      btn.type = 'button';
+      btn.className = 'reaction-dock-emoji';
+      btn.textContent = emoji;
+      btn.title = emoji;
+      btn.onclick = (e) => {
+        e.stopPropagation();
+        toggleReaction(msgId, emoji);
+        dock.remove();
+      };
+      dock.appendChild(btn);
+    });
+
+    containerEl.appendChild(dock);
+  }
+
+  // --------------------------------------------------------------------------
+  // Date Filtering & Memory Navigation System
+  // --------------------------------------------------------------------------
+  function toISODateString(date) {
+    const y = date.getFullYear();
+    const m = String(date.getMonth() + 1).padStart(2, '0');
+    const d = String(date.getDate()).padStart(2, '0');
+    return `${y}-${m}-${d}`;
+  }
+
+  function getAllUniqueDatesWithMessages() {
+    const dateMap = new Map();
+    state.messages.forEach(msg => {
+      if (!msg.timestamp) return;
+      const d = new Date(msg.timestamp);
+      const iso = toISODateString(d);
+      if (!dateMap.has(iso)) {
+        dateMap.set(iso, {
+          iso,
+          date: d,
+          formattedDate: formatDateHeader(d),
+          count: 0,
+          senders: new Set()
+        });
+      }
+      const entry = dateMap.get(iso);
+      entry.count++;
+      if (msg.sender) entry.senders.add(msg.sender);
+    });
+
+    return Array.from(dateMap.values()).sort((a, b) => b.date.getTime() - a.date.getTime());
+  }
+
+  function filterByDate(dateIsoStr) {
+    if (!dateIsoStr || dateIsoStr === 'all') {
+      state.selectedDateFilter = null;
+      if (DOM.dateFilterBanner) DOM.dateFilterBanner.style.display = 'none';
+      if (DOM.dateFilterBadgeDot) DOM.dateFilterBadgeDot.style.display = 'none';
+      renderMessages();
+      scrollToBottom(false);
+      return;
+    }
+
+    state.selectedDateFilter = dateIsoStr;
+
+    const parts = dateIsoStr.split('-');
+    const d = new Date(parseInt(parts[0], 10), parseInt(parts[1], 10) - 1, parseInt(parts[2], 10));
+    const formatted = formatDateHeader(d);
+    const count = state.messages.filter(m => toISODateString(new Date(m.timestamp)) === dateIsoStr).length;
+
+    if (DOM.activeFilteredDateText) DOM.activeFilteredDateText.textContent = formatted;
+    if (DOM.activeFilteredDateCount) DOM.activeFilteredDateCount.textContent = `${count} رسائل`;
+    if (DOM.dateFilterBanner) DOM.dateFilterBanner.style.display = 'flex';
+    if (DOM.dateFilterBadgeDot) DOM.dateFilterBadgeDot.style.display = 'block';
+
+    renderMessages();
+    scrollToTop(false);
+  }
+
+  function navigateDayFilter(direction) {
+    const available = getAllUniqueDatesWithMessages();
+    if (available.length === 0) {
+      showToast('لا توجد رسائل مسجلة في المحادثة بعد', 'info');
+      return;
+    }
+
+    let currentIdx = available.findIndex(item => item.iso === state.selectedDateFilter);
+    if (currentIdx === -1) {
+      currentIdx = 0;
+    }
+
+    const nextIdx = direction === 'prev' ? currentIdx + 1 : currentIdx - 1;
+
+    if (nextIdx >= 0 && nextIdx < available.length) {
+      filterByDate(available[nextIdx].iso);
+    } else {
+      showToast(direction === 'prev' ? 'وصلت إلى أقدم يوم مسجل في المحادثة 📜' : 'وصلت إلى أحدث يوم مسجل في المحادثة 🌟', 'info');
+    }
+  }
+
+  function openDateFilterModal() {
+    if (!DOM.dateFilterModal) return;
+    renderAvailableDatesList();
+    if (DOM.dateFilterInput) {
+      DOM.dateFilterInput.value = state.selectedDateFilter || toISODateString(new Date());
+    }
+    DOM.dateFilterModal.style.display = 'flex';
+  }
+
+  function renderAvailableDatesList() {
+    if (!DOM.availableDatesList) return;
+    const available = getAllUniqueDatesWithMessages();
+    DOM.availableDatesList.innerHTML = '';
+
+    if (available.length === 0) {
+      DOM.availableDatesList.innerHTML = `<div style="text-align:center;color:var(--text-muted);padding:18px;font-size:0.88rem;">لا توجد رسائل مسجلة بعد في المحادثة</div>`;
+      return;
+    }
+
+    available.forEach(item => {
+      const el = document.createElement('div');
+      el.className = `date-memory-item ${state.selectedDateFilter === item.iso ? 'active-filter' : ''}`;
+      const sendersList = Array.from(item.senders).slice(0, 3).join('، ') + (item.senders.size > 3 ? '...' : '');
+
+      el.innerHTML = `
+        <div class="memory-item-info">
+          <div class="memory-item-date"><i class="fa-regular fa-calendar text-accent"></i> ${item.formattedDate}</div>
+          <div class="memory-item-sub"><i class="fa-solid fa-users"></i> ${sendersList || 'محادثات العائلة'}</div>
+        </div>
+        <span class="memory-item-badge">${item.count} رسالة</span>
+      `;
+
+      el.onclick = () => {
+        filterByDate(item.iso);
+        DOM.dateFilterModal.style.display = 'none';
+        showToast(`تم عرض ذكريات ${item.formattedDate} 📅`, 'success');
+      };
+
+      DOM.availableDatesList.appendChild(el);
+    });
   }
 
   // --------------------------------------------------------------------------
   // 8. Message Stream Rendering & Date Grouping
   // --------------------------------------------------------------------------
-  function renderMessages() {
+  function renderMessages(newMsgId = null) {
     let filteredMessages = state.messages;
 
+    // Filter by Selected Memory Date if active
+    if (state.selectedDateFilter) {
+      filteredMessages = filteredMessages.filter(m => {
+        if (!m.timestamp) return false;
+        return toISODateString(new Date(m.timestamp)) === state.selectedDateFilter;
+      });
+    }
+
+    // Filter by Search Query if active
     if (state.searchQuery) {
       const q = state.searchQuery.toLowerCase();
-      filteredMessages = state.messages.filter(m => 
+      filteredMessages = filteredMessages.filter(m => 
         (m.text && m.text.toLowerCase().includes(q)) ||
         (m.sender && m.sender.toLowerCase().includes(q)) ||
         (m.mediaName && m.mediaName.toLowerCase().includes(q))
       );
-      DOM.searchResultsCount.textContent = `تم العثور على ${filteredMessages.length} رسالة مطابقة`;
+      if (DOM.searchResultsCount) {
+        DOM.searchResultsCount.textContent = `تم العثور على ${filteredMessages.length} رسالة مطابقة`;
+      }
     }
 
     DOM.messagesStream.innerHTML = '';
 
     if (filteredMessages.length === 0) {
+      if (state.selectedDateFilter) {
+        DOM.familyWelcomeCard.style.display = 'none';
+        const emptyDiv = document.createElement('div');
+        emptyDiv.className = 'empty-memory-filter-card';
+        emptyDiv.innerHTML = `
+          <div class="empty-memory-icon"><i class="fa-regular fa-calendar-xmark"></i></div>
+          <h3>لا توجد رسائل مسجلة في هذا اليوم</h3>
+          <p>لم يتم العثور على رسائل في تاريخ <strong>${DOM.activeFilteredDateText ? DOM.activeFilteredDateText.textContent : state.selectedDateFilter}</strong>.</p>
+          <div style="display:flex;gap:8px;justify-content:center;flex-wrap:wrap;">
+            <button type="button" class="btn btn-outline btn-sm" id="emptyMemoryOpenModalBtn"><i class="fa-solid fa-calendar-days"></i> اختيار يوم آخر</button>
+            <button type="button" class="btn btn-primary btn-sm" id="emptyMemoryClearBtn"><i class="fa-solid fa-rotate-left"></i> عرض جميع الرسائل</button>
+          </div>
+        `;
+        emptyDiv.querySelector('#emptyMemoryClearBtn').onclick = () => filterByDate('all');
+        emptyDiv.querySelector('#emptyMemoryOpenModalBtn').onclick = openDateFilterModal;
+        DOM.messagesStream.appendChild(emptyDiv);
+        return;
+      }
+
       DOM.familyWelcomeCard.style.display = 'block';
       return;
     }
@@ -1487,6 +2225,9 @@
       const isOutgoing = msg.sender === state.currentUser;
       const row = document.createElement('div');
       row.className = `message-row ${isOutgoing ? 'outgoing' : 'incoming'}`;
+      if (newMsgId && msg.id === newMsgId) {
+        row.classList.add('new-arrival');
+      }
       row.setAttribute('data-id', msg.id);
 
       // Sender Avatar
@@ -1503,9 +2244,51 @@
           : getAvatarColor(msg.sender);
       }
 
-      // Bubble Box
+      // Bubble Box Container
       const bubbleBox = document.createElement('div');
       bubbleBox.className = 'message-bubble-box';
+
+      // Floating Action Toolbar (WhatsApp Quick Actions: Reply, React, Delete)
+      const actionsToolbar = document.createElement('div');
+      actionsToolbar.className = 'message-actions-toolbar';
+
+      // React Button
+      const reactBtn = document.createElement('button');
+      reactBtn.type = 'button';
+      reactBtn.className = 'msg-action-btn react-btn';
+      reactBtn.title = 'تفاعل بإيموجي (واتساب)';
+      reactBtn.innerHTML = `<i class="fa-regular fa-face-smile"></i>`;
+      reactBtn.onclick = (e) => {
+        e.stopPropagation();
+        toggleReactionDock(msg.id, bubbleBox);
+      };
+      actionsToolbar.appendChild(reactBtn);
+
+      // Reply Button
+      const replyBtn = document.createElement('button');
+      replyBtn.type = 'button';
+      replyBtn.className = 'msg-action-btn reply-btn';
+      replyBtn.title = 'رد على هذه الرسالة (اقتباس)';
+      replyBtn.innerHTML = `<i class="fa-solid fa-reply"></i>`;
+      replyBtn.onclick = (e) => {
+        e.stopPropagation();
+        setReplyTo(msg.id);
+      };
+      actionsToolbar.appendChild(replyBtn);
+
+      // Delete Button
+      const delActionBtn = document.createElement('button');
+      delActionBtn.type = 'button';
+      delActionBtn.className = 'msg-action-btn';
+      delActionBtn.title = 'حذف الرسالة';
+      delActionBtn.innerHTML = `<i class="fa-regular fa-trash-can"></i>`;
+      delActionBtn.onclick = (e) => {
+        e.stopPropagation();
+        promptDeleteMessage(msg.id);
+      };
+      actionsToolbar.appendChild(delActionBtn);
+
+      bubbleBox.appendChild(actionsToolbar);
 
       const bubble = document.createElement('div');
       bubble.className = 'message-bubble';
@@ -1515,6 +2298,25 @@
       senderNameEl.className = 'message-sender-name';
       senderNameEl.innerHTML = `<span>${escapeHTML(msg.sender)}</span>`;
       bubble.appendChild(senderNameEl);
+
+      // Render Quoted Reply Card if message is a reply
+      if (msg.replyTo) {
+        const quoteWrap = document.createElement('div');
+        quoteWrap.className = 'message-quoted-preview';
+        quoteWrap.title = 'انقر للانتقال للرسالة الأصلية';
+        quoteWrap.innerHTML = `
+          <div class="quote-bar"></div>
+          <div class="quote-content">
+            <div class="quote-sender"><i class="fa-solid fa-reply"></i> ${escapeHTML(msg.replyTo.sender || '')}</div>
+            <div class="quote-snippet">${escapeHTML(msg.replyTo.text || 'رسالة')}</div>
+          </div>
+        `;
+        quoteWrap.onclick = (e) => {
+          e.stopPropagation();
+          scrollToMessage(msg.replyTo.id);
+        };
+        bubble.appendChild(quoteWrap);
+      }
 
       // Polls or Special Message Types
       if (msg.type === 'poll' || msg.pollData) {
@@ -1572,7 +2374,7 @@
         bubble.appendChild(textEl);
       }
 
-      // Footer Meta (Time + Delete Button)
+      // Footer Meta (Time + Status)
       const footerMeta = document.createElement('div');
       footerMeta.className = 'message-footer-meta';
       
@@ -1588,34 +2390,42 @@
         footerMeta.appendChild(checkSpan);
       }
 
-      // Delete Button
-      const deleteBtn = document.createElement('button');
-      deleteBtn.className = 'msg-delete-btn';
-      deleteBtn.title = 'حذف الرسالة';
-      deleteBtn.innerHTML = `<i class="fa-regular fa-trash-can"></i>`;
-      deleteBtn.onclick = (e) => {
-        e.stopPropagation();
-        promptDeleteMessage(msg.id);
-      };
-      footerMeta.appendChild(deleteBtn);
-
       bubble.appendChild(footerMeta);
       bubbleBox.appendChild(bubble);
 
-      // Reactions Display
+      // WhatsApp Reaction Pills Display
       if (msg.reactions && Object.keys(msg.reactions).length > 0) {
         const reactionsBar = document.createElement('div');
         reactionsBar.className = 'bubble-reactions-bar';
-        for (const [emoji, count] of Object.entries(msg.reactions)) {
+        for (const [emoji, val] of Object.entries(msg.reactions)) {
+          let count = 0;
+          let namesList = [];
+          let hasUserReacted = false;
+
+          if (Array.isArray(val)) {
+            count = val.length;
+            namesList = val;
+            hasUserReacted = val.includes(state.currentUser);
+          } else if (typeof val === 'number') {
+            count = val;
+          }
+
           if (count > 0) {
             const rPill = document.createElement('span');
-            rPill.className = 'reaction-pill';
+            rPill.className = `reaction-pill ${hasUserReacted ? 'user-reacted' : ''}`;
+            const tooltip = namesList.length > 0 ? `تفاعل بواسطة: ${namesList.join('، ')}` : `${count} تفاعل`;
+            rPill.title = tooltip;
             rPill.innerHTML = `${emoji} <strong>${count}</strong>`;
-            rPill.onclick = () => toggleReaction(msg.id, emoji);
+            rPill.onclick = (e) => {
+              e.stopPropagation();
+              toggleReaction(msg.id, emoji);
+            };
             reactionsBar.appendChild(rPill);
           }
         }
-        bubbleBox.appendChild(reactionsBar);
+        if (reactionsBar.children.length > 0) {
+          bubbleBox.appendChild(reactionsBar);
+        }
       }
 
       row.appendChild(avatarEl);
@@ -2124,7 +2934,11 @@
     saveMessagesCache();
     renderMessages();
 
-    if (state.isFirebaseReady && state.dbRef) {
+    if (state.isFirebaseReady && state.firestore) {
+      updateDoc(doc(state.firestore, 'yahia_messages', msgId), {
+        pollData: poll
+      }).catch(err => console.warn('Firestore poll vote sync note:', err));
+    } else if (state.isFirebaseReady && state.dbRef) {
       state.dbRef.child(msgId).child('pollData').set(poll);
     }
     if (state.broadcastChannel) {
@@ -2142,7 +2956,11 @@
     saveMessagesCache();
     renderMessages();
 
-    if (state.isFirebaseReady && state.dbRef) {
+    if (state.isFirebaseReady && state.firestore) {
+      updateDoc(doc(state.firestore, 'yahia_messages', msgId), {
+        pollData: msg.pollData
+      }).catch(err => console.warn('Firestore poll toggle note:', err));
+    } else if (state.isFirebaseReady && state.dbRef) {
       state.dbRef.child(msgId).child('pollData').child('isClosed').set(msg.pollData.isClosed);
     }
     if (state.broadcastChannel) {
@@ -2244,7 +3062,8 @@
         createdBy: state.currentUser
       },
       timestamp: Date.now(),
-      reactions: {}
+      reactions: {},
+      synced: false
     };
 
     if (DOM.pollCreateModal) {
@@ -2254,7 +3073,7 @@
     // Save locally
     state.messages.push(pollMessage);
     saveMessagesCache();
-    renderMessages();
+    renderMessages(pollMessage.id);
     scrollToBottom(true);
     playNotificationSound();
 
@@ -2265,8 +3084,22 @@
       } catch(e){}
     }
 
-    // Firebase Sync
-    if (state.isFirebaseReady && state.dbRef) {
+    // Firebase Firestore Sync
+    if (state.isFirebaseReady && state.firestore) {
+      setDoc(doc(state.firestore, 'yahia_messages', pollMessage.id), pollMessage)
+        .then(() => {
+          const target = state.messages.find(m => m.id === pollMessage.id);
+          if (target) {
+            target.synced = true;
+            saveMessagesCache();
+            renderMessages();
+          }
+        })
+        .catch(err => {
+          console.warn('Firestore poll sync error:', err);
+          showToast(`⚠️ تعذر مزامنة الاستطلاع: ${err.message || 'خطأ في الاتصال'}`, 'warning');
+        });
+    } else if (state.isFirebaseReady && state.dbRef) {
       state.dbRef.child(pollMessage.id).set(pollMessage);
     }
   }
@@ -2356,7 +3189,9 @@
 
     if (DOM.announcementModal) DOM.announcementModal.style.display = 'none';
 
-    if (state.isFirebaseReady && state.announcementDbRef) {
+    if (state.isFirebaseReady && state.firestore) {
+      setDoc(doc(state.firestore, 'yahia_announcements', 'current_pinned'), announcementData).catch(console.warn);
+    } else if (state.isFirebaseReady && state.announcementDbRef) {
       state.announcementDbRef.set(announcementData);
     }
   }
@@ -2368,7 +3203,9 @@
 
     if (DOM.announcementModal) DOM.announcementModal.style.display = 'none';
 
-    if (state.isFirebaseReady && state.announcementDbRef) {
+    if (state.isFirebaseReady && state.firestore) {
+      deleteDoc(doc(state.firestore, 'yahia_announcements', 'current_pinned')).catch(console.warn);
+    } else if (state.isFirebaseReady && state.announcementDbRef) {
       state.announcementDbRef.remove();
     }
   }
@@ -2536,15 +3373,20 @@
               ${ev.member ? `<span><i class="fa-regular fa-user"></i> ${escapeHTML(ev.member)}</span>` : ''}
             </div>
           </div>
-          <span class="event-countdown-badge ${countdown.statusClass}">${countdown.text}</span>
+          <div class="event-header-badges">
+            <span class="event-countdown-badge ${countdown.statusClass}">${countdown.text}</span>
+            <button type="button" class="btn-event-quick-delete" data-event-id="${ev.id}" title="حذف هذه المناسبة من التقويم">
+              <i class="fa-solid fa-trash-can"></i>
+            </button>
+          </div>
         </div>
         ${ev.notes ? `<p class="event-notes">${escapeHTML(ev.notes)}</p>` : ''}
         <div class="event-card-footer">
           <button type="button" class="btn-event-greet" data-event-id="${ev.id}">
             <i class="fa-solid fa-heart"></i> إرسال تهنئة في الدردشة
           </button>
-          <button type="button" class="btn-event-delete" data-event-id="${ev.id}" title="حذف المناسبة">
-            <i class="fa-regular fa-trash-can"></i>
+          <button type="button" class="btn-event-delete" data-event-id="${ev.id}" title="حذف هذه المناسبة نهائياً">
+            <i class="fa-solid fa-trash-can"></i> <span>حذف المناسبة</span>
           </button>
         </div>
       `;
@@ -2554,9 +3396,21 @@
         DOM.eventsCalendarModal.style.display = 'none';
       };
 
-      card.querySelector('.btn-event-delete').onclick = () => {
-        deleteFamilyEvent(ev.id);
-      };
+      const quickDelBtn = card.querySelector('.btn-event-quick-delete');
+      if (quickDelBtn) {
+        quickDelBtn.onclick = (e) => {
+          e.stopPropagation();
+          promptDeleteFamilyEvent(ev);
+        };
+      }
+
+      const footerDelBtn = card.querySelector('.btn-event-delete');
+      if (footerDelBtn) {
+        footerDelBtn.onclick = (e) => {
+          e.stopPropagation();
+          promptDeleteFamilyEvent(ev);
+        };
+      }
 
       DOM.eventsListContainer.appendChild(card);
     });
@@ -2576,7 +3430,7 @@
     const notes = (DOM.eventNotesInput ? DOM.eventNotesInput.value : '').trim();
 
     if (!title || !date) {
-      alert('يرجى إدخال عنوان المناسبة وتاريخها.');
+      showToast('يرجى إدخال عنوان المناسبة وتاريخها', 'warning');
       return;
     }
 
@@ -2600,20 +3454,72 @@
 
     updateEventsBadgeUI();
     renderFamilyEventsList();
+    showToast('تمت إضافة المناسبة بنجاح 🎉', 'success');
 
-    if (state.isFirebaseReady && state.eventsDbRef) {
+    // Broadcast update across tabs
+    if (state.broadcastChannel) {
+      try {
+        state.broadcastChannel.postMessage({
+          type: 'EVENTS_UPDATED',
+          events: state.familyEvents
+        });
+      } catch (e) {}
+    }
+
+    if (state.isFirebaseReady && state.firestore) {
+      setDoc(doc(state.firestore, 'yahia_events', newEvent.id), newEvent).catch(console.warn);
+    } else if (state.isFirebaseReady && state.eventsDbRef) {
       state.eventsDbRef.set(state.familyEvents);
     }
   }
 
-  function deleteFamilyEvent(id) {
-    if (!confirm('هل أنت متأكد من حذف هذه المناسبة؟')) return;
-    state.familyEvents = state.familyEvents.filter(ev => ev.id !== id);
+  function promptDeleteFamilyEvent(ev) {
+    if (!ev) return;
+    state.pendingDeleteEventId = ev.id;
+    if (DOM.deleteEventTargetTitle) {
+      DOM.deleteEventTargetTitle.textContent = ev.title || 'مناسبة عائلية';
+    }
+    if (DOM.deleteEventTargetDate) {
+      DOM.deleteEventTargetDate.innerHTML = `<i class="fa-regular fa-calendar"></i> ${ev.date || ''} ${ev.member ? ` • ${escapeHTML(ev.member)}` : ''}`;
+    }
+    if (DOM.deleteEventConfirmModal) {
+      DOM.deleteEventConfirmModal.style.display = 'flex';
+    } else {
+      executeDeleteFamilyEvent(ev.id);
+    }
+  }
+
+  function closeDeleteEventConfirmModal() {
+    state.pendingDeleteEventId = null;
+    if (DOM.deleteEventConfirmModal) {
+      DOM.deleteEventConfirmModal.style.display = 'none';
+    }
+  }
+
+  function executeDeleteFamilyEvent(id) {
+    const targetId = id || state.pendingDeleteEventId;
+    if (!targetId) return;
+
+    state.familyEvents = state.familyEvents.filter(ev => ev.id !== targetId);
     localStorage.setItem(STORAGE_KEYS.FAMILY_EVENTS, JSON.stringify(state.familyEvents));
     updateEventsBadgeUI();
     renderFamilyEventsList();
+    closeDeleteEventConfirmModal();
+    showToast('تم حذف المناسبة من التقويم بنجاح 🗑️', 'info');
 
-    if (state.isFirebaseReady && state.eventsDbRef) {
+    // Broadcast update across open tabs
+    if (state.broadcastChannel) {
+      try {
+        state.broadcastChannel.postMessage({
+          type: 'EVENTS_UPDATED',
+          events: state.familyEvents
+        });
+      } catch (e) {}
+    }
+
+    if (state.isFirebaseReady && state.firestore) {
+      deleteDoc(doc(state.firestore, 'yahia_events', targetId)).catch(console.warn);
+    } else if (state.isFirebaseReady && state.eventsDbRef) {
       state.eventsDbRef.set(state.familyEvents);
     }
   }
@@ -2732,7 +3638,7 @@
     return labels[cat] || '📸 ذكريات';
   }
 
-  function saveNewMemory() {
+  async function saveNewMemory() {
     const caption = (DOM.memoryCaptionInput ? DOM.memoryCaptionInput.value : '').trim();
     const category = DOM.memoryAlbumCategory ? DOM.memoryAlbumCategory.value : 'celebrations';
     const previewImg = DOM.memoryPreviewImg ? DOM.memoryPreviewImg.src : '';
@@ -2742,11 +3648,18 @@
       return;
     }
 
+    let optimizedImg = previewImg;
+    try {
+      optimizedImg = await compressChatImage(previewImg, 900, 0.82);
+    } catch(e) {
+      console.warn('Memory compression fallback:', e);
+    }
+
     const newMem = {
       id: `mem_${Date.now()}`,
       category,
       caption: caption || 'ذكرى عائلية جميلة',
-      imageUrl: previewImg,
+      imageUrl: optimizedImg,
       sender: state.currentUser,
       timestamp: Date.now()
     };
@@ -2761,6 +3674,11 @@
 
     renderGalleryTab('albums');
     updateMediaCounts();
+    showToast('تمت إضافة الذكرى إلى ألبوم العائلة 📸', 'success');
+
+    if (state.isFirebaseReady && state.firestore) {
+      setDoc(doc(state.firestore, 'yahia_memories', newMem.id), newMem).catch(console.warn);
+    }
   }
 
   // --------------------------------------------------------------------------
@@ -2931,18 +3849,31 @@
       }
     });
 
-    // File Input Changes
+    // File & Camera Input Changes
+    DOM.fileInput.addEventListener('click', () => {
+      DOM.fileInput.value = '';
+    });
     DOM.fileInput.addEventListener('change', (e) => {
       if (e.target.files && e.target.files[0]) {
         handleFileSelect(e.target.files[0]);
       }
     });
 
+    DOM.cameraInput.addEventListener('click', () => {
+      DOM.cameraInput.value = '';
+    });
     DOM.cameraInput.addEventListener('change', (e) => {
       if (e.target.files && e.target.files[0]) {
         handleFileSelect(e.target.files[0]);
       }
     });
+
+    if (DOM.quickSendAttachmentBtn) {
+      DOM.quickSendAttachmentBtn.addEventListener('click', (e) => {
+        e.preventDefault();
+        sendMessage();
+      });
+    }
 
     DOM.cancelAttachmentBtn.addEventListener('click', clearPendingAttachment);
 
@@ -3122,6 +4053,85 @@
       }
     });
 
+    // Date Filter Header Button & Banner Listeners (Memories Browser)
+    if (DOM.dateFilterBtn) {
+      DOM.dateFilterBtn.addEventListener('click', openDateFilterModal);
+    }
+
+    if (DOM.openDateModalFromBannerBtn) {
+      DOM.openDateModalFromBannerBtn.addEventListener('click', openDateFilterModal);
+    }
+
+    if (DOM.clearDateFilterBtn) {
+      DOM.clearDateFilterBtn.addEventListener('click', () => {
+        filterByDate('all');
+        showToast('تم إلغاء التصفية وعرض جميع الرسائل 💬', 'info');
+      });
+    }
+
+    if (DOM.prevDayFilterBtn) {
+      DOM.prevDayFilterBtn.addEventListener('click', () => navigateDayFilter('prev'));
+    }
+
+    if (DOM.nextDayFilterBtn) {
+      DOM.nextDayFilterBtn.addEventListener('click', () => navigateDayFilter('next'));
+    }
+
+    // Date Filter Modal Handlers
+    if (DOM.closeDateFilterModalBtn) {
+      DOM.closeDateFilterModalBtn.addEventListener('click', () => {
+        DOM.dateFilterModal.style.display = 'none';
+      });
+    }
+
+    if (DOM.closeDateFilterFooterBtn) {
+      DOM.closeDateFilterFooterBtn.addEventListener('click', () => {
+        DOM.dateFilterModal.style.display = 'none';
+      });
+    }
+
+    if (DOM.resetDateFilterModalBtn) {
+      DOM.resetDateFilterModalBtn.addEventListener('click', () => {
+        filterByDate('all');
+        DOM.dateFilterModal.style.display = 'none';
+        showToast('تم عرض جميع محادثات العائلة', 'info');
+      });
+    }
+
+    if (DOM.applyDatePickerBtn && DOM.dateFilterInput) {
+      DOM.applyDatePickerBtn.addEventListener('click', () => {
+        const val = DOM.dateFilterInput.value;
+        if (val) {
+          filterByDate(val);
+          DOM.dateFilterModal.style.display = 'none';
+          const parts = val.split('-');
+          const d = new Date(parseInt(parts[0], 10), parseInt(parts[1], 10) - 1, parseInt(parts[2], 10));
+          showToast(`تم عرض رسائل ${formatDateHeader(d)} 📅`, 'success');
+        }
+      });
+    }
+
+    if (DOM.dateFilterModal) {
+      DOM.dateFilterModal.addEventListener('click', (e) => {
+        if (e.target === DOM.dateFilterModal) {
+          DOM.dateFilterModal.style.display = 'none';
+        }
+      });
+    }
+
+    // Quoted Reply Cancel Button
+    if (DOM.cancelReplyBtn) {
+      DOM.cancelReplyBtn.addEventListener('click', cancelReplyTo);
+    }
+
+    // Dismiss WhatsApp Floating Reaction Dock when clicking anywhere outside
+    document.addEventListener('click', (e) => {
+      if (!e.target.closest('#activeReactionDock') && !e.target.closest('.react-btn')) {
+        const activeDock = document.getElementById('activeReactionDock');
+        if (activeDock) activeDock.remove();
+      }
+    });
+
     DOM.searchInput.addEventListener('input', (e) => {
       state.searchQuery = e.target.value.trim();
       renderMessages();
@@ -3284,6 +4294,26 @@
       DOM.saveNewEventBtn.addEventListener('click', saveNewFamilyEvent);
     }
 
+    // Delete Event Confirm Modal Listeners
+    if (DOM.closeDeleteEventConfirmModalBtn) {
+      DOM.closeDeleteEventConfirmModalBtn.addEventListener('click', closeDeleteEventConfirmModal);
+    }
+    if (DOM.cancelDeleteEventBtn) {
+      DOM.cancelDeleteEventBtn.addEventListener('click', closeDeleteEventConfirmModal);
+    }
+    if (DOM.confirmDeleteEventActionBtn) {
+      DOM.confirmDeleteEventActionBtn.addEventListener('click', () => {
+        executeDeleteFamilyEvent();
+      });
+    }
+    if (DOM.deleteEventConfirmModal) {
+      DOM.deleteEventConfirmModal.addEventListener('click', (e) => {
+        if (e.target === DOM.deleteEventConfirmModal) {
+          closeDeleteEventConfirmModal();
+        }
+      });
+    }
+
     // Family Polls Listeners
     if (DOM.createPollBtn) {
       DOM.createPollBtn.addEventListener('click', openPollCreateModal);
@@ -3407,30 +4437,183 @@
       DOM.soundToggle.checked = state.soundEnabled;
     }
 
-    // PWA Install Prompt
+    // PWA & Desktop Shortcut Functions
+    function openShortcutModal(preselectedTab) {
+      if (!DOM.shortcutModal) return;
+
+      const ua = navigator.userAgent || '';
+      const isIOS = /iPad|iPhone|iPod/.test(ua) && !window.MSStream;
+      const isAndroid = /Android/.test(ua);
+      const isMobile = isIOS || isAndroid;
+
+      // Auto-detect device if no tab specified
+      let targetTab = preselectedTab;
+      if (!targetTab) {
+        if (isIOS) {
+          targetTab = 'tab-ios';
+        } else if (isAndroid) {
+          targetTab = 'tab-android';
+        } else {
+          targetTab = 'tab-pc';
+        }
+      }
+
+      // Switch active tab
+      if (DOM.shortcutDeviceTabs) {
+        DOM.shortcutDeviceTabs.querySelectorAll('.device-tab').forEach(tab => {
+          if (tab.getAttribute('data-tab') === targetTab) {
+            tab.classList.add('active');
+          } else {
+            tab.classList.remove('active');
+          }
+        });
+      }
+
+      if (DOM.shortcutModal) {
+        DOM.shortcutModal.querySelectorAll('.device-tab-panel').forEach(panel => {
+          if (panel.id === targetTab) {
+            panel.classList.add('active');
+          } else {
+            panel.classList.remove('active');
+          }
+        });
+      }
+
+      // Hide or show desktop shortcut download on mobile vs PC
+      if (DOM.downloadDesktopShortcutBtn) {
+        DOM.downloadDesktopShortcutBtn.style.display = isMobile ? 'none' : 'inline-flex';
+      }
+
+      // If native prompt is available or mobile device, show direct install button
+      if (DOM.triggerNativeInstallBtn) {
+        DOM.triggerNativeInstallBtn.style.display = 'inline-flex';
+      }
+
+      DOM.shortcutModal.style.display = 'flex';
+    }
+
+    function closeShortcutModal() {
+      if (DOM.shortcutModal) DOM.shortcutModal.style.display = 'none';
+    }
+
+    function downloadDesktopShortcut() {
+      const ua = navigator.userAgent || '';
+      const isMobile = /iPad|iPhone|iPod|Android/.test(ua);
+      if (isMobile) {
+        showToast('على الهاتف: استخدم زر «إضافة إلى الشاشة الرئيسية» من قائمة المتصفح لتظهر أيقونة التطبيق بشكل سليم 📱', 'info', 5000);
+        return;
+      }
+
+      try {
+        const currentUrl = window.location.origin + '/';
+        const shortcutContent = `[InternetShortcut]\r\nURL=${currentUrl}\r\nIconIndex=0\r\n`;
+        const blob = new Blob([shortcutContent], { type: 'application/internet-shortcut' });
+        const downloadLink = document.createElement('a');
+        downloadLink.href = URL.createObjectURL(blob);
+        downloadLink.download = 'عائلة يحيي صبيح.url';
+        document.body.appendChild(downloadLink);
+        downloadLink.click();
+        document.body.removeChild(downloadLink);
+        URL.revokeObjectURL(downloadLink.href);
+
+        showToast('تم تنزيل ملف اختصار سطح المكتب بنجاح! اسحبه الآن لسطح المكتب 💻', 'success', 4000);
+      } catch (err) {
+        console.warn('Desktop shortcut download error:', err);
+        showToast('تعذر التنزيل التلقائي، يمكنك اتباع خطوات التثبيت من المتصفح', 'warning');
+      }
+    }
+
+    // PWA Install Prompt Listener
     window.addEventListener('beforeinstallprompt', (e) => {
       e.preventDefault();
       state.deferredInstallPrompt = e;
-      DOM.pwaInstallBtn.style.display = 'inline-flex';
-      DOM.pwaBanner.style.display = 'flex';
+      if (DOM.pwaBanner) DOM.pwaBanner.style.display = 'flex';
     });
 
     const triggerPWAInstall = async () => {
-      if (!state.deferredInstallPrompt) return;
-      state.deferredInstallPrompt.prompt();
-      const { outcome } = await state.deferredInstallPrompt.userChoice;
-      if (outcome === 'accepted') {
-        DOM.pwaBanner.style.display = 'none';
-        DOM.pwaInstallBtn.style.display = 'none';
+      if (state.deferredInstallPrompt) {
+        try {
+          state.deferredInstallPrompt.prompt();
+          const { outcome } = await state.deferredInstallPrompt.userChoice;
+          if (outcome === 'accepted') {
+            if (DOM.pwaBanner) DOM.pwaBanner.style.display = 'none';
+            showToast('تم تثبيت تطبيق عائلة يحيي صبيح بنجاح على هاتفك 🎉', 'success', 4000);
+            closeShortcutModal();
+          }
+          state.deferredInstallPrompt = null;
+        } catch (err) {
+          console.warn('PWA prompt error:', err);
+        }
+      } else {
+        const ua = navigator.userAgent || '';
+        if (/iPad|iPhone|iPod/.test(ua)) {
+          showToast('على الآيفون: اضغط زر المشاركة (Share ⬆️) ثم «إضافة إلى الصفحة الرئيسية» 📱', 'info', 5000);
+        } else if (/Android/.test(ua)) {
+          showToast('على الأندرويد: اضغط النقاط الثلاث (⋮) في أعلى المتصفح ثم «إضافة إلى الشاشة الرئيسية» 📲', 'info', 5000);
+        } else {
+          showToast('من متصفح الكمبيوتر: اضغط علامة التثبيت في شريط العنوان بالأعلى 💻', 'info', 4000);
+        }
       }
-      state.deferredInstallPrompt = null;
     };
 
-    DOM.pwaInstallBtn.addEventListener('click', triggerPWAInstall);
-    DOM.pwaBannerInstallBtn.addEventListener('click', triggerPWAInstall);
-    DOM.pwaBannerDismissBtn.addEventListener('click', () => {
-      DOM.pwaBanner.style.display = 'none';
-    });
+    // Header & Modal Shortcut Buttons
+    if (DOM.openShortcutModalBtn) {
+      DOM.openShortcutModalBtn.addEventListener('click', () => openShortcutModal());
+    }
+    if (DOM.settingsOpenShortcutBtn) {
+      DOM.settingsOpenShortcutBtn.addEventListener('click', () => {
+        if (DOM.settingsModal) DOM.settingsModal.style.display = 'none';
+        openShortcutModal();
+      });
+    }
+    if (DOM.closeShortcutModalBtn) {
+      DOM.closeShortcutModalBtn.addEventListener('click', closeShortcutModal);
+    }
+    if (DOM.closeShortcutModalFooterBtn) {
+      DOM.closeShortcutModalFooterBtn.addEventListener('click', closeShortcutModal);
+    }
+    if (DOM.triggerNativeInstallBtn) {
+      DOM.triggerNativeInstallBtn.addEventListener('click', triggerPWAInstall);
+    }
+    if (DOM.downloadDesktopShortcutBtn) {
+      DOM.downloadDesktopShortcutBtn.addEventListener('click', downloadDesktopShortcut);
+    }
+
+    // Device Tabs Switching
+    if (DOM.shortcutDeviceTabs) {
+      DOM.shortcutDeviceTabs.addEventListener('click', (e) => {
+        const tabBtn = e.target.closest('.device-tab');
+        if (tabBtn) {
+          const tabId = tabBtn.getAttribute('data-tab');
+          openShortcutModal(tabId);
+        }
+      });
+    }
+
+    // Copy App Link to Share with Family
+    if (DOM.copyAppShareLinkBtn) {
+      DOM.copyAppShareLinkBtn.addEventListener('click', async () => {
+        try {
+          await navigator.clipboard.writeText(window.location.href);
+          showToast('تم نسخ رابط التطبيق بنجاح! يمكنك الآن إرساله للعائلة 📋', 'success');
+        } catch (err) {
+          const input = document.createElement('input');
+          input.value = window.location.href;
+          document.body.appendChild(input);
+          input.select();
+          document.execCommand('copy');
+          document.body.removeChild(input);
+          showToast('تم نسخ رابط التطبيق بنجاح 📋', 'success');
+        }
+      });
+    }
+
+    if (DOM.pwaBannerInstallBtn) DOM.pwaBannerInstallBtn.addEventListener('click', () => openShortcutModal());
+    if (DOM.pwaBannerDismissBtn) {
+      DOM.pwaBannerDismissBtn.addEventListener('click', () => {
+        if (DOM.pwaBanner) DOM.pwaBanner.style.display = 'none';
+      });
+    }
 
     // Drag & Drop media file onto chat area
     DOM.chatMain.addEventListener('dragover', (e) => {
@@ -3475,9 +4658,19 @@
   function registerServiceWorker() {
     if ('serviceWorker' in navigator) {
       window.addEventListener('load', () => {
-        navigator.serviceWorker.register('./sw.js')
-          .then((reg) => console.log('Service Worker registered successfully:', reg.scope))
-          .catch((err) => console.warn('Service Worker registration warning:', err));
+        navigator.serviceWorker.register('/sw.js', { scope: '/' })
+          .then((reg) => {
+            console.log('Service Worker registered successfully:', reg.scope);
+            // Check for SW updates
+            if (reg.update) {
+              reg.update();
+            }
+          })
+          .catch((err) => {
+            // Fallback to relative registration if root scope is restricted
+            navigator.serviceWorker.register('./sw.js')
+              .catch((swErr) => console.warn('Service Worker fallback warning:', swErr));
+          });
       });
     }
   }
@@ -3485,19 +4678,49 @@
   // --------------------------------------------------------------------------
   // 18. Application Bootstrap
   // --------------------------------------------------------------------------
-  document.addEventListener('DOMContentLoaded', () => {
-    initUserSession();
-    initFirebase();
-    initPinnedAnnouncements();
-    initFamilyEvents();
-    initFamilyMemories();
-    setupEventListeners();
-    registerServiceWorker();
+  let isBootstrapped = false;
+  function bootstrap() {
+    if (isBootstrapped) return;
+    isBootstrapped = true;
 
-    // Scroll to bottom after initial load
-    setTimeout(() => {
-      scrollToBottom(false);
-    }, 300);
-  });
+    try {
+      initUserSession();
+      initFirebase();
+      initPinnedAnnouncements();
+      initFamilyEvents();
+      initFamilyMemories();
+      setupEventListeners();
+      registerServiceWorker();
+
+      // Check URL query params for shortcut direct view
+      const urlParams = new URLSearchParams(window.location.search);
+      const viewParam = urlParams.get('view');
+      if (viewParam === 'events') {
+        setTimeout(() => {
+          if (DOM.eventsCalendarModal) {
+            renderFamilyEventsList();
+            DOM.eventsCalendarModal.style.display = 'flex';
+          }
+        }, 500);
+      } else if (viewParam === 'gallery') {
+        setTimeout(() => {
+          if (DOM.mediaGalleryModal) openMediaGallery('albums');
+        }, 500);
+      }
+
+      // Scroll to bottom after initial load
+      setTimeout(() => {
+        scrollToBottom(false);
+      }, 300);
+    } catch (e) {
+      console.error('App bootstrap error:', e);
+    }
+  }
+
+  if (document.readyState === 'loading') {
+    document.addEventListener('DOMContentLoaded', bootstrap);
+  } else {
+    bootstrap();
+  }
 
 })();

@@ -1,0 +1,102 @@
+{
+  "entities": {
+    "Message": {
+      "title": "Message",
+      "description": "A chat message in Yahia Sobeih Family chat room",
+      "type": "object",
+      "properties": {
+        "id": { "type": "string" },
+        "sender": { "type": "string" },
+        "senderAvatar": { "type": "string" },
+        "text": { "type": "string" },
+        "timestamp": { "type": "number" },
+        "mediaUrl": { "type": "string" },
+        "mediaType": { "type": "string" },
+        "mediaName": { "type": "string" },
+        "mediaSize": { "type": "number" },
+        "youtubeId": { "type": "string" },
+        "type": { "type": "string" },
+        "pollData": { "type": "object" },
+        "reactions": { "type": "object" }
+      },
+      "required": ["id", "sender", "timestamp"]
+    },
+    "FamilyEvent": {
+      "title": "FamilyEvent",
+      "description": "A scheduled event in the family calendar",
+      "type": "object",
+      "properties": {
+        "id": { "type": "string" },
+        "title": { "type": "string" },
+        "date": { "type": "string" },
+        "category": { "type": "string" },
+        "member": { "type": "string" },
+        "notes": { "type": "string" }
+      },
+      "required": ["id", "title", "date"]
+    },
+    "Announcement": {
+      "title": "Announcement",
+      "description": "Pinned announcement for the family",
+      "type": "object",
+      "properties": {
+        "title": { "type": "string" },
+        "text": { "type": "string" },
+        "sender": { "type": "string" },
+        "timestamp": { "type": "number" }
+      },
+      "required": ["text", "sender", "timestamp"]
+    },
+    "FamilyMemory": {
+      "title": "FamilyMemory",
+      "description": "A shared memory / photo in the family album",
+      "type": "object",
+      "properties": {
+        "id": { "type": "string" },
+        "category": { "type": "string" },
+        "caption": { "type": "string" },
+        "imageUrl": { "type": "string" },
+        "sender": { "type": "string" },
+        "timestamp": { "type": "number" }
+      },
+      "required": ["id", "imageUrl", "sender", "timestamp"]
+    },
+    "FamilyMember": {
+      "title": "FamilyMember",
+      "description": "Registered family member name and avatar info",
+      "type": "object",
+      "properties": {
+        "name": { "type": "string" },
+        "avatar": { "type": "string" },
+        "lastActive": { "type": "number" }
+      },
+      "required": ["name"]
+    }
+  },
+  "firestore": {
+    "/yahia_messages/{messageId}": {
+      "schema": "Message",
+      "description": "Real-time family messages collection"
+    },
+    "/yahia_events/{eventId}": {
+      "schema": "FamilyEvent",
+      "description": "Family calendar events"
+    },
+    "/yahia_announcements/{announcementId}": {
+      "schema": "Announcement",
+      "description": "Pinned family announcements"
+    },
+    "/yahia_memories/{memoryId}": {
+      "schema": "FamilyMemory",
+      "description": "Family memory album items"
+    },
+    "/yahia_members/{memberId}": {
+      "schema": "FamilyMember",
+      "description": "Registered family members directory"
+    },
+    "/yahia_roster/{docId}": {
+      "schema": "FamilyMember",
+      "description": "Family members roster and avatar dictionary"
+    }
+  }
+}
